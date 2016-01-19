@@ -3,7 +3,7 @@
  *  XVID MPEG-4 VIDEO CODEC
  *  - Debug header  -
  *
- *  Copyright(C) 2002-2003 Anonymous <xvid-devel@xvid.org>
+ *  Copyright(C) Peter Ross <pross@xvid.org>
  *
  *  This program is free software ; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -19,7 +19,7 @@
  *  along with this program ; if not, write to the Free Software
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  *
- * $Id: debug.h,v 1.2 2004/03/22 22:36:25 edgomez Exp $
+ * $Id: debug.h 1985 2011-05-18 09:02:35Z Isibaar $
  *
  ****************************************************************************/
 

@@ -17,7 +17,7 @@
     Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 
-    $Id: sad_altivec.c,v 1.11 2004/12/09 23:02:54 edgomez Exp $
+    $Id: sad_altivec.c 1985 2011-05-18 09:02:35Z Isibaar $
 */
 
 #ifdef HAVE_ALTIVEC_H

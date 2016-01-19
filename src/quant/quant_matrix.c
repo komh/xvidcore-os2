@@ -20,7 +20,7 @@
  *  along with this program ; if not, write to the Free Software
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  *
- * $Id: quant_matrix.c,v 1.14 2004/03/22 22:36:24 edgomez Exp $
+ * $Id: quant_matrix.c 1985 2011-05-18 09:02:35Z Isibaar $
  *
  ****************************************************************************/
 
@@ -112,16 +112,22 @@ set_intra_matrix(uint16_t * mpeg_quant_matrices, const uint8_t * matrix)
 {
 	int i;
 	uint16_t *intra_matrix = mpeg_quant_matrices + 0*64;
-	uint16_t *intra_matrix1 = mpeg_quant_matrices + 1*64;
-	uint16_t *intra_matrix_fix = mpeg_quant_matrices + 2*64;
-	uint16_t *intra_matrix_fixl = mpeg_quant_matrices + 3*64;
 
 	for (i = 0; i < 64; i++) {
 		intra_matrix[i] = (!i) ? (uint16_t)8: (uint16_t)matrix[i];
-		intra_matrix1[i] = (intra_matrix[i]>>1);
-		intra_matrix1[i] += ((intra_matrix[i] == 1) ? 1: 0);
-		intra_matrix_fix[i] = FIX(intra_matrix[i]);
-		intra_matrix_fixl[i] = FIXL(intra_matrix[i]);
+	}
+}
+
+void
+init_intra_matrix(uint16_t * mpeg_quant_matrices, uint32_t quant)
+{
+	int i;
+	uint16_t *intra_matrix = mpeg_quant_matrices + 0*64;
+	uint16_t *intra_matrix_rec = mpeg_quant_matrices + 1*64;
+
+	for (i = 0; i < 64; i++) {
+		uint32_t div = intra_matrix[i]*quant;
+		intra_matrix_rec[i] = ((uint32_t)((1<<SCALEBITS) + (div>>1)))/div;
 	}
 }
 
@@ -137,8 +143,8 @@ set_inter_matrix(uint16_t * mpeg_quant_matrices, const uint8_t * matrix)
 	for (i = 0; i < 64; i++) {
 		inter_matrix1[i] = ((inter_matrix[i] = (int16_t) matrix[i])>>1);
 		inter_matrix1[i] += ((inter_matrix[i] == 1) ? 1: 0);
-		inter_matrix_fix[i] = FIX(inter_matrix[i]);
-		inter_matrix_fixl[i] = FIXL(inter_matrix[i]);
+		inter_matrix_fix[i] = (uint16_t) FIX(inter_matrix[i]);
+		inter_matrix_fixl[i] = (uint16_t) FIXL(inter_matrix[i]);
 	}
 }
 

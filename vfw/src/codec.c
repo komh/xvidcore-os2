@@ -3,6 +3,8 @@
  *	XVID VFW FRONTEND
  *	codec
  *
+ *	Copyright(C) Peter Ross <pross@xvid.org>
+ *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by
  *	the Free Software Foundation; either version 2 of the License, or
@@ -17,33 +19,7 @@
  *	along with this program; if not, write to the Free Software
  *	Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  *
- *************************************************************************/
-
-/**************************************************************************
- *
- *	History:
- *
- *	12.07.2002	num_threads
- *	23.06.2002	XVID_CPU_CHKONLY; loading speed up
- *	25.04.2002	ICDECOMPRESS_PREROLL
- *	17.04.2002	re-enabled lumi masking for 1st pass
- *	15.04.2002	updated cbr support
- *	04.04.2002	separated 2-pass code to 2pass.c
- *				interlacing support
- *				hinted ME support
- *	23.03.2002	daniel smith <danielsmith@astroboymail.com>
- *				changed inter4v to only be in modes 5 or 6
- *				fixed null mode crash ?
- *				merged foxer's alternative 2-pass code
- *				added DEBUGERR output on errors instead of returning
- *	16.03.2002	daniel smith <danielsmith@astroboymail.com>
- *				changed BITMAPV4HEADER to BITMAPINFOHEADER
- *					- prevents memcpy crash in compress_get_format()
- *				credits are processed in external 2pass mode
- *				motion search precision = 0 now effective in 2-pass
- *				modulated quantization
- *				added DX50 fourcc
- *	01.12.2001	inital version; (c)2001 peter ross <pross@xvid.org>
+ * $Id: codec.c 1985 2011-05-18 09:02:35Z Isibaar $
  *
  *************************************************************************/
 
@@ -221,7 +197,7 @@ LRESULT compress_get_format(CODEC * codec, BITMAPINFO * lpbiInput, BITMAPINFO * 
 	outhdr->biClrUsed = 0;
 	outhdr->biClrImportant = 0;
 
-	if (codec->config.fourcc_used == 0)
+	if ((codec->config.fourcc_used == 0) || (profiles[codec->config.profile].flags & PROFILE_XVID))
 	{
 		outhdr->biCompression = FOURCC_XVID;
 	}
@@ -421,9 +397,11 @@ LRESULT compress_begin(CODEC * codec, BITMAPINFO * lpbiInput, BITMAPINFO * lpbiO
 	xvid_plugin_single_t single;
 	xvid_plugin_2pass1_t pass1;
 	xvid_plugin_2pass2_t pass2;
+	xvid_plugin_lumimasking_t masking;
+    xvid_gbl_info_t info;
 	int i;
 	HANDLE hFile;
-  const quality_t* quality_preset = (codec->config.quality==quality_table_num) ?
+	const quality_t* quality_preset = (codec->config.quality==quality_table_num) ?
     &codec->config.quality_user : &quality_table[codec->config.quality];
 
 	CONFIG tmpCfg; /* if we want to alter config to suit our needs, it shouldn't be visible to user later */
@@ -442,8 +420,44 @@ LRESULT compress_begin(CODEC * codec, BITMAPINFO * lpbiInput, BITMAPINFO * lpbiO
 	init.debug = codec->config.debug;
 	codec->xvid_global_func(0, XVID_GBL_INIT, &init, NULL);
 
+	memset(&info, 0, sizeof(info));
+	info.version = XVID_VERSION;
+	codec->xvid_global_func(0, XVID_GBL_INFO, &info, NULL);
+
 	memset(&create, 0, sizeof(create));
 	create.version = XVID_VERSION;
+
+    /* Encoder threads */
+    if (codec->config.cpu & XVID_CPU_FORCE)
+		create.num_threads = codec->config.num_threads;
+	else 
+        create.num_threads = info.num_threads; /* Autodetect */
+
+	/* Encoder slices */
+	if ((profiles[codec->config.profile].flags & PROFILE_RESYNCMARKER) && codec->config.num_slices != 1) {
+		
+		if (codec->config.num_slices == 0) { /* auto */
+			int mb_width = (lpbiInput->bmiHeader.biWidth + 15) / 16;
+			int mb_height = (lpbiInput->bmiHeader.biHeight + 15) / 16;
+
+			int slices = (int)((mb_width*mb_height) / 811); /* use multiple slices only above SD resolutions for now */
+
+			if (slices > 1) {
+				if (create.num_threads <= 1)
+					slices &= ~1; /* make even */
+				else if (create.num_threads <= slices)
+					slices = (slices / create.num_threads) * create.num_threads; /* multiple of threads */
+				else if (create.num_threads % slices)
+					slices = (!(create.num_threads%2)) ? (create.num_threads/2) : (create.num_threads/3);
+			}
+
+			create.num_slices = slices;
+		}
+		else {
+			create.num_slices = codec->config.num_slices; /* force manual value - by registry edit */
+		}
+
+	}
 
 	/* plugins */
 	create.plugins = plugins;
@@ -508,10 +522,7 @@ LRESULT compress_begin(CODEC * codec, BITMAPINFO * lpbiInput, BITMAPINFO * lpbiO
 		pass2.vbv_size = profiles[codec->config.profile].max_vbv_size;
 		pass2.vbv_initial = (profiles[codec->config.profile].max_vbv_size*3)/4; /* 75% */
 		pass2.vbv_maxrate = profiles[codec->config.profile].max_bitrate;
-
-    // XXX: xvidcore current provides a "peak bits over 3secs" constraint.
-    //      according to the latest dxn literature, a 1sec constraint is now used
-    pass2.vbv_peakrate = profiles[codec->config.profile].vbv_peakrate * 3;
+		pass2.vbv_peakrate = profiles[codec->config.profile].vbv_peakrate;
 
 		plugins[create.num_plugins].func = codec->xvid_plugin_2pass2_func;
 		plugins[create.num_plugins].param = &pass2;
@@ -541,9 +552,11 @@ LRESULT compress_begin(CODEC * codec, BITMAPINFO * lpbiInput, BITMAPINFO * lpbiO
 	}
 
 	/* lumimasking plugin */
-  	if ((profiles[codec->config.profile].flags & PROFILE_ADAPTQUANT) && codec->config.lum_masking) {
+  	if ((profiles[codec->config.profile].flags & PROFILE_ADAPTQUANT) && (codec->config.lum_masking>0)) {
+		memset(&masking, 0, sizeof(masking));
+		masking.method = (codec->config.lum_masking==2);
 		plugins[create.num_plugins].func = codec->xvid_plugin_lumimasking_func;
-		plugins[create.num_plugins].param = NULL;
+		plugins[create.num_plugins].param = &masking;
 		create.num_plugins++; 
 	}
 
@@ -584,21 +597,23 @@ LRESULT compress_begin(CODEC * codec, BITMAPINFO * lpbiInput, BITMAPINFO * lpbiO
       if ((create.max_bframes > profiles[codec->config.profile].xvid_max_bframes) && (profiles[codec->config.profile].xvid_max_bframes >= 0))
         create.max_bframes = profiles[codec->config.profile].xvid_max_bframes;
 
-      /* dxn: enable packed bframes */
+      /* DXN: enable packed bframes */
       if ((profiles[codec->config.profile].flags & PROFILE_PACKED)) {
-
         create.global |= XVID_GLOBAL_PACKED;
       }
     }
 	}
 
-  /* dxn: always write divx5 userdata */
-  if ((profiles[codec->config.profile].flags & PROFILE_EXTRA))
-    create.global |= XVID_GLOBAL_DIVX5_USERDATA;
+    /* dxn: always write divx5 userdata */
+    if ((profiles[codec->config.profile].flags & PROFILE_EXTRA))
+      create.global |= XVID_GLOBAL_DIVX5_USERDATA;
 
-	create.frame_drop_ratio = quality_preset->frame_drop_ratio;
-
-	create.num_threads = codec->config.num_threads;
+	if ((profiles[codec->config.profile].flags & PROFILE_EXTRA) || 
+		(profiles[codec->config.profile].flags & PROFILE_XVID)) {
+  	  create.frame_drop_ratio = 0;
+	} else {
+  	  create.frame_drop_ratio = quality_preset->frame_drop_ratio;
+	}
 
 	switch(codec->xvid_encore_func(0, XVID_ENC_CREATE, &create, NULL))
 	{
@@ -631,8 +646,8 @@ LRESULT compress_begin(CODEC * codec, BITMAPINFO * lpbiInput, BITMAPINFO * lpbiO
 
 LRESULT compress_end(CODEC * codec)
 {
-    if (codec==NULL)
-      return ICERR_OK;
+  if (codec==NULL)
+    return ICERR_OK;
 
 	if (codec->m_hdll != NULL) {
 		if (codec->ehandle != NULL) {
@@ -811,6 +826,9 @@ LRESULT compress(CODEC * codec, ICCOMPRESS * icc)
 		break;
 	}
 
+	if (quality_preset->vhq_metric == 1)
+		frame.vop_flags |= XVID_VOP_RD_PSNRHVSM;
+
 	frame.input.plane[0] = icc->lpInput;
 	frame.input.stride[0] = CALC_BI_STRIDE(icc->lpbiInput->biWidth, icc->lpbiInput->biBitCount);
 
@@ -906,13 +924,16 @@ LRESULT decompress_query(CODEC * codec, BITMAPINFO *lpbiInput, BITMAPINFO *lpbiO
 {
 	BITMAPINFOHEADER * inhdr = &lpbiInput->bmiHeader;
 	BITMAPINFOHEADER * outhdr = &lpbiOutput->bmiHeader;
+	int in_csp = XVID_CSP_NULL, out_csp = XVID_CSP_NULL;
 
 	if (lpbiInput == NULL) 
 	{
 		return ICERR_ERROR;
 	}
 
-	if (inhdr->biCompression != FOURCC_XVID && inhdr->biCompression != FOURCC_DIVX && inhdr->biCompression != FOURCC_DX50 && get_colorspace(inhdr) == XVID_CSP_NULL)
+	if (inhdr->biCompression != FOURCC_XVID && inhdr->biCompression != FOURCC_DIVX && inhdr->biCompression != FOURCC_DX50 && inhdr->biCompression != FOURCC_MP4V &&
+		inhdr->biCompression != FOURCC_xvid && inhdr->biCompression != FOURCC_divx && inhdr->biCompression != FOURCC_dx50 && inhdr->biCompression != FOURCC_mp4v &&
+		(in_csp = get_colorspace(inhdr)) != XVID_CSP_YV12)
 	{
 		return ICERR_BADFORMAT;
 	}
@@ -922,9 +943,12 @@ LRESULT decompress_query(CODEC * codec, BITMAPINFO *lpbiInput, BITMAPINFO *lpbiO
 		return ICERR_OK;
 	}
 
+	out_csp = get_colorspace(outhdr);
+
 	if (inhdr->biWidth != outhdr->biWidth ||
 		inhdr->biHeight != outhdr->biHeight ||
-		get_colorspace(outhdr) == XVID_CSP_NULL) 
+		out_csp == XVID_CSP_NULL ||
+		(in_csp == XVID_CSP_YV12 && in_csp != out_csp)) 
 	{
 		return ICERR_BADFORMAT;
 	}
@@ -985,7 +1009,9 @@ LRESULT decompress_get_format(CODEC * codec, BITMAPINFO * lpbiInput, BITMAPINFO 
 
 LRESULT decompress_begin(CODEC * codec, BITMAPINFO * lpbiInput, BITMAPINFO * lpbiOutput)
 {
+	BITMAPINFOHEADER * inhdr = &lpbiInput->bmiHeader;
 	xvid_gbl_init_t init;
+	xvid_gbl_info_t info;
 	xvid_dec_create_t create;
 	HKEY hKey;
 
@@ -994,13 +1020,24 @@ LRESULT decompress_begin(CODEC * codec, BITMAPINFO * lpbiInput, BITMAPINFO * lpb
 	memset(&init, 0, sizeof(init));
 	init.version = XVID_VERSION;
 	init.cpu_flags = codec->config.cpu;
-  init.debug = codec->config.debug;
+	init.debug = codec->config.debug;
 	codec->xvid_global_func(0, XVID_GBL_INIT, &init, NULL);
+
+	memset(&info, 0, sizeof(info));
+	info.version = XVID_VERSION;
+	codec->xvid_global_func(0, XVID_GBL_INFO, &info, NULL);
 
 	memset(&create, 0, sizeof(create));
 	create.version = XVID_VERSION;
 	create.width = lpbiInput->bmiHeader.biWidth;
 	create.height = lpbiInput->bmiHeader.biHeight;
+	create.fourcc = inhdr->biCompression;
+
+    /* Decoder threads */
+    if (codec->config.cpu & XVID_CPU_FORCE)
+		create.num_threads = codec->config.num_threads;
+	else 
+        create.num_threads = info.num_threads; /* Autodetect */
 
 	switch(codec->xvid_decore_func(0, XVID_DEC_CREATE, &create, NULL)) 
 	{
@@ -1022,11 +1059,11 @@ LRESULT decompress_begin(CODEC * codec, BITMAPINFO * lpbiInput, BITMAPINFO * lpb
 	RegOpenKeyEx(XVID_REG_KEY, XVID_REG_PARENT "\\" XVID_REG_CHILD, 0, KEY_READ, &hKey);
 
 	REG_GET_N("Brightness", pp_brightness, 0);
-	REG_GET_N("Deblock_Y",  pp_dy, 0)
-	REG_GET_N("Deblock_UV", pp_duv, 0)
-	REG_GET_N("Dering_Y",  pp_dry, 0)
-	REG_GET_N("Dering_UV", pp_druv, 0)
-	REG_GET_N("FilmEffect", pp_fe, 0)
+	REG_GET_N("Deblock_Y",  pp_dy, 0);
+	REG_GET_N("Deblock_UV", pp_duv, 0);
+	REG_GET_N("Dering_Y",  pp_dry, 0);
+	REG_GET_N("Dering_UV", pp_druv, 0);
+	REG_GET_N("FilmEffect", pp_fe, 0);
 
 	RegCloseKey(hKey);
 
@@ -1054,7 +1091,12 @@ LRESULT decompress(CODEC * codec, ICDECOMPRESS * icd)
 	/* --- yv12 --- */	
 	if (icd->lpbiInput->biCompression != FOURCC_XVID &&
 		 icd->lpbiInput->biCompression != FOURCC_DIVX &&
-		 icd->lpbiInput->biCompression != FOURCC_DX50)
+		 icd->lpbiInput->biCompression != FOURCC_DX50 &&
+		 icd->lpbiInput->biCompression != FOURCC_MP4V &&
+		 icd->lpbiInput->biCompression != FOURCC_xvid &&
+		 icd->lpbiInput->biCompression != FOURCC_divx &&
+		 icd->lpbiInput->biCompression != FOURCC_dx50 &&
+		 icd->lpbiInput->biCompression != FOURCC_mp4v)
 	{
 		xvid_gbl_convert_t convert;
 

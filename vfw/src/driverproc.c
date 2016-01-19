@@ -3,7 +3,7 @@
  *	XVID MPEG-4 VFW FRONTEND
  *	- driverproc main -
  *
- *  Copyright(C) 2001-2003 Peter Ross <pross@xvid.org>
+ *  Copyright(C) Peter Ross <pross@xvid.org>
  *
  *  This program is free software ; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -19,7 +19,7 @@
  *  along with this program ; if not, write to the Free Software
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  *
- * $Id: driverproc.c,v 1.8 2005/09/09 11:34:51 suxen_drol Exp $
+ * $Id: driverproc.c 1985 2011-05-18 09:02:35Z Isibaar $
  *
  ****************************************************************************/
 
@@ -35,17 +35,17 @@
 
 static int clean_dll_bindings(CODEC* codec);
 
-BOOL WINAPI DllMain(
-	HANDLE hModule, 
-	DWORD  ul_reason_for_call, 
-	LPVOID lpReserved)
+INT_PTR WINAPI DllMain(
+		HANDLE hModule, 
+		DWORD  ul_reason_for_call, 
+		LPVOID lpReserved)
 {
 	g_hInst = (HINSTANCE) hModule;
     return TRUE;
 }
 
 /* __declspec(dllexport) */ LRESULT WINAPI DriverProc(
-	DWORD dwDriverId, 
+	DWORD_PTR dwDriverId, 
 	HDRVR hDriver, 
 	UINT uMsg, 
 	LPARAM lParam1, 
@@ -308,10 +308,10 @@ BOOL WINAPI DllMain(
 
 void WINAPI Configure(HWND hwnd, HINSTANCE hinst, LPTSTR lpCmdLine, int nCmdShow)
 {
-	DWORD dwDriverId;
+	LRESULT dwDriverId;
 
-	dwDriverId = DriverProc(0, 0, DRV_OPEN, 0, 0);
-	if (dwDriverId != (DWORD)NULL)
+	dwDriverId = (LRESULT) DriverProc(0, 0, DRV_OPEN, 0, 0);
+	if (dwDriverId != (LRESULT)NULL)
 	{
 		if (lstrcmpi(lpCmdLine, "about")==0) {
 			DriverProc(dwDriverId, 0, ICM_ABOUT, (LPARAM)GetDesktopWindow(), 0);

@@ -3,7 +3,7 @@
  *  XVID MPEG-4 VIDEO CODEC
  *  - Image related header  -
  *
- *  Copyright(C) 2001-2004 Peter Ross <pross@xvid.org>
+ *  Copyright(C) 2001-2010 Peter Ross <pross@xvid.org>
  *
  *  This program is free software ; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -19,7 +19,7 @@
  *  along with this program ; if not, write to the Free Software
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  *
- * $Id: image.h,v 1.15 2005/09/09 12:18:10 suxen_drol Exp $
+ * $Id: image.h 1985 2011-05-18 09:02:35Z Isibaar $
  *
  ****************************************************************************/
 
@@ -66,10 +66,10 @@ void image_setedges(IMAGE * image,
 					uint32_t height,
 					int bs_version);
 
-void image_interpolate(const IMAGE * refn,
-					   IMAGE * refh,
-					   IMAGE * refv,
-					   IMAGE * refhv,
+void image_interpolate(const uint8_t * refn,
+					   uint8_t * refh,
+					   uint8_t * refv,
+					   uint8_t * refhv,
 					   uint32_t edged_width,
 					   uint32_t edged_height,
 					   uint32_t quarterpel,
@@ -135,10 +135,19 @@ image_clear(IMAGE * img, int width, int height, int edged_width,
 					int y, int u, int v);
 
 
+void image_block_variance(IMAGE * orig_image, uint16_t stride, MACROBLOCK *mbs,
+				          uint16_t mb_width, uint16_t mb_height);
+
 void
-image_deblock_rrv(IMAGE * img, int edgeg_width,
+image_deblock_rrv(IMAGE * img, int edged_width,
 				const MACROBLOCK * mbs, int mb_width, int mb_height, int mb_stride,
 				int block, int flags);
 
+
+	/* helper function: deinterlace image.
+	 Only for YUV 4:2:0 planar format. Use bottom_first!=0 if main
+	 field is the bottom one.
+	 returns 1 if everything went ok, 0 otherwise. */
+extern int xvid_image_deinterlace(xvid_image_t* img, int width, int height, int bottom_first);
 
 #endif							/* _IMAGE_H_ */

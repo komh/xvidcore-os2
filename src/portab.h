@@ -3,7 +3,7 @@
  *  XVID MPEG-4 VIDEO CODEC
  *  - Portable macros, types and inlined assembly -
  *
- *  Copyright(C) 2002      Michael Militzer <isibaar@xvid.org>
+ *  Copyright(C) 2002-2010 Michael Militzer <isibaar@xvid.org>
  *               2002-2003 Peter Ross <pross@xvid.org>
  *               2002-2003 Edouard Gomez <ed.gomez@free.fr>
  *
@@ -21,7 +21,7 @@
  *  along with this program ; if not, write to the Free Software
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  *
- * $Id: portab.h,v 1.54.2.1 2006/07/10 15:05:30 Isibaar Exp $
+ * $Id: portab.h 1985 2011-05-18 09:02:35Z Isibaar $
  *
  ****************************************************************************/
 
@@ -39,7 +39,7 @@ extern unsigned int xvid_debug;
 #endif
 
 /*****************************************************************************
- *  Types used in XviD sources
+ *  Types used in Xvid sources
  ****************************************************************************/
 
 /*----------------------------------------------------------------------------
@@ -68,6 +68,45 @@ extern unsigned int xvid_debug;
 #endif
 
 /*****************************************************************************
+ *  Some things that are OS dependant
+ ****************************************************************************/
+
+#ifdef WIN32
+
+# include <windows.h>
+# define pthread_t				HANDLE
+# define pthread_create(t,u,f,d) *(t)=CreateThread(NULL,0,f,d,0,NULL)
+# define pthread_join(t,s)		{ WaitForSingleObject(t,INFINITE); \
+									CloseHandle(t); } 
+# define sched_yield()			Sleep(0);
+static __inline int pthread_num_processors_np() 
+{
+	DWORD p_aff, s_aff, r = 0;
+	GetProcessAffinityMask(GetCurrentProcess(), (PDWORD_PTR) &p_aff, (PDWORD_PTR) &s_aff);
+	for(; p_aff != 0; p_aff>>=1) r += p_aff&1;
+	return r;
+}
+
+#elif defined(__amigaos4__)
+
+# include <pthread.h>
+# include <proto/dos.h>
+# define sched_yield() IDOS->Delay(1)
+
+#elif defined(SYS_BEOS)
+
+# include <kernel/OS.h>
+# define pthread_t				thread_id
+# define pthread_create(t,u,f,d) { *(t)=spawn_thread(f,"",10,d); \
+								resume_thread(*(t)); }
+# define pthread_join(t,s)		wait_for_thread(t,(long*)s)
+# define sched_yield()			snooze(0) /* is this correct? */
+
+#else
+# include <pthread.h>
+#endif
+
+/*****************************************************************************
  *  Some things that are only architecture dependant
  ****************************************************************************/
 
@@ -75,6 +114,7 @@ extern unsigned int xvid_debug;
 #    define CACHE_LINE 64
 #    define ptr_t uint32_t
 #    define intptr_t int32_t
+#    define _INTPTR_T_DEFINED
 #    if defined(_MSC_VER) && _MSC_VER >= 1300 && !defined(__INTEL_COMPILER)
 #        include <stdarg.h>
 #    else
@@ -84,13 +124,14 @@ extern unsigned int xvid_debug;
 #    define CACHE_LINE  64
 #    define ptr_t uint64_t
 #    define intptr_t int64_t
+#    define _INTPTR_T_DEFINED
 #    if defined (_MSC_VER) && _MSC_VER >= 1300 && !defined(__INTEL_COMPILER)
 #        include <stdarg.h>
 #    else
 #        define uintptr_t uint64_t
 #    endif
 #else
-#    error You are trying to compile XviD without defining address bus size.
+#    error You are trying to compile Xvid without defining address bus size.
 #endif
 
 /*****************************************************************************
@@ -130,7 +171,7 @@ static __inline void DPRINTF(int level, char *fmt, ...)
 		va_start(args, fmt);
 		vsprintf(buf, fmt, args);
 		va_end(args);
-		OutputDebugString(buf);
+		OutputDebugStringA(buf);
 		fprintf(stderr, "%s", buf);
 	}
 }
@@ -151,7 +192,7 @@ type * name = (type *) (((int32_t) name##_storage+(alignment - 1)) & ~((int32_t)
 /*----------------------------------------------------------------------------
   | msvc x86 specific macros/functions
  *---------------------------------------------------------------------------*/
-#    if defined(ARCH_IS_IA32) || defined(ARCH_IS_X86_64)
+#    if defined(ARCH_IS_IA32)
 #        define BSWAP(a) __asm mov eax,a __asm bswap eax __asm mov a, eax
 
 static __inline int64_t read_counter(void)
@@ -166,6 +207,14 @@ static __inline int64_t read_counter(void)
 	ts = ((uint64_t) ts2 << 32) | ((uint64_t) ts1);
 	return ts;
 }
+
+#    elif defined(ARCH_IS_X86_64)
+
+#    include <intrin.h>
+
+#    define BSWAP(a) ((a) = _byteswap_ulong(a))
+
+static __inline int64_t read_counter(void) { return __rdtsc(); }
 
 /*----------------------------------------------------------------------------
   | msvc GENERIC (plain C only) - Probably alpha or some embedded device
@@ -183,10 +232,10 @@ static __inline int64_t read_counter(void)
 
 /*----------------------------------------------------------------------------
   | msvc Not given architecture - This is probably an user who tries to build
-  | XviD the wrong way.
+  | Xvid the wrong way.
  *---------------------------------------------------------------------------*/
 #    else
-#        error You are trying to compile XviD without defining the architecture type.
+#        error You are trying to compile Xvid without defining the architecture type.
 #    endif
 
 
@@ -291,8 +340,8 @@ static __inline int64_t read_counter(void)
  *---------------------------------------------------------------------------*/
 #    elif defined(ARCH_IS_IA64)
 #        define BSWAP(a)  __asm__ __volatile__ \
- 	("mux1 %0 = %1, @rev" ";;" \
- 	 "shr.u %0 = %0, 32" : "=r" (a) : "r" (a));
+	("mux1 %0 = %1, @rev" ";;" \
+	 "shr.u %0 = %0, 32" : "=r" (a) : "r" (a));
 
 static __inline int64_t read_counter(void)
 {
@@ -317,10 +366,10 @@ static __inline int64_t read_counter(void)
 
 /*----------------------------------------------------------------------------
   | gcc Not given architecture - This is probably an user who tries to build
-  | XviD the wrong way.
+  | Xvid the wrong way.
  *---------------------------------------------------------------------------*/
 #    else
-#        error You are trying to compile XviD without defining the architecture type.
+#        error You are trying to compile Xvid without defining the architecture type.
 #    endif
 
 
@@ -358,7 +407,7 @@ type * name = (type *) (((int32_t) name##_storage+(alignment - 1)) & ~((int32_t)
 /*----------------------------------------------------------------------------
   | watcom ia32 specific macros/functions
  *---------------------------------------------------------------------------*/
-#    if defined(ARCH_IS_IA32)
+#    if defined(ARCH_IS_IA32) || defined(ARCH_IS_X86_64)
 
 #        define BSWAP(a)  __asm mov eax,a __asm bswap eax __asm mov a, eax
 
@@ -390,10 +439,10 @@ static int64_t read_counter() { return 0; }
 
 /*----------------------------------------------------------------------------
   | watcom Not given architecture - This is probably an user who tries to build
-  | XviD the wrong way.
+  | Xvid the wrong way.
  *---------------------------------------------------------------------------*/
 #    else
-#        error You are trying to compile XviD without defining the architecture type.
+#        error You are trying to compile Xvid without defining the architecture type.
 #    endif
 
 

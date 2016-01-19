@@ -1,3 +1,28 @@
+/*****************************************************************************
+ *
+ *  XVID MPEG-4 VIDEO CODEC
+ *  - Configuration processing header file -
+ *
+ *  Copyright(C) 2002-2011 Peter Ross <pross@xvid.org>
+ *
+ *  This program is free software ; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation ; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY ; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program ; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
+ *
+ * $Id: config.h 1995 2011-05-18 16:13:23Z Isibaar $
+ *
+ ****************************************************************************/
+
 #ifndef _DSHOW_CONFIG_H_
 #define _DSHOW_CONFIG_H_
 
@@ -17,7 +42,7 @@ extern "C" {
 
 
 /* config struct */
-#define SUPPORT_DX50		(1<<0)
+#define SUPPORT_3IVX		(1<<0)
 #define SUPPORT_DIVX		(1<<1)
 #define SUPPORT_MP4V		(1<<2)
 
@@ -40,6 +65,8 @@ typedef struct
 	unsigned int supported_4cc;
 	int videoinfo_compat;
 	int aspect_ratio;
+	int num_threads;
+	DWORD cpu;
 } CONFIG;
 
 
@@ -50,8 +77,9 @@ extern CONFIG g_config;
 /* functions */
 void LoadRegistryInfo();
 void SaveRegistryInfo();
-BOOL CALLBACK adv_proc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam);
+INT_PTR CALLBACK adv_proc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
+#define XVID_DLL_NAME "xvidcore.dll"
 
 #ifdef __cplusplus
 }

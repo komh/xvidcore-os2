@@ -3,7 +3,7 @@
  *  XVID MPEG-4 VIDEO CODEC
  *  - Image management functions -
  *
- *  Copyright(C) 2001-2004 Peter Ross <pross@xvid.org>
+ *  Copyright(C) 2001-2010 Peter Ross <pross@xvid.org>
  *
  *  This program is free software ; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -19,7 +19,7 @@
  *  along with this program ; if not, write to the Free Software
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  *
- * $Id: image.c,v 1.32 2005/09/09 12:18:10 suxen_drol Exp $
+ * $Id: image.c 1985 2011-05-18 09:02:35Z Isibaar $
  *
  ****************************************************************************/
 
@@ -34,6 +34,7 @@
 #include "interpolate8x8.h"
 #include "../utils/mem_align.h"
 #include "../motion/sad.h"
+#include "../utils/emms.h"
 
 #include "font.h"		/* XXX: remove later */
 
@@ -126,8 +127,10 @@ image_copy(IMAGE * image1,
 	memcpy(image1->v, image2->v, edged_width * height / 4);
 }
 
-/* setedges bug was fixed in this BS version */
+/* setedges bug was in this BS versions */
 #define SETEDGES_BUG_BEFORE		18
+#define SETEDGES_BUG_AFTER		57
+#define SETEDGES_BUG_REFIXED		63
 
 void
 image_setedges(IMAGE * image,
@@ -148,7 +151,9 @@ image_setedges(IMAGE * image,
 
 	/* According to the Standard Clause 7.6.4, padding is done starting at 16
 	 * pixel width and height multiples. This was not respected in old xvids */
-	if (bs_version == 0 || bs_version >= SETEDGES_BUG_BEFORE) {
+	if ((bs_version >= SETEDGES_BUG_BEFORE &&
+		bs_version <  SETEDGES_BUG_AFTER) || 
+		bs_version >= SETEDGES_BUG_REFIXED) {
 		width  = (width+15)&~15;
 		height = (height+15)&~15;
 	}
@@ -236,12 +241,11 @@ image_setedges(IMAGE * image,
 	}
 }
 
-/* bframe encoding requires image-based u,v interpolation */
 void
-image_interpolate(const IMAGE * refn,
-				  IMAGE * refh,
-				  IMAGE * refv,
-				  IMAGE * refhv,
+image_interpolate(const uint8_t * refn,
+				  uint8_t * refh,
+				  uint8_t * refv,
+				  uint8_t * refhv,
 				  uint32_t edged_width,
 				  uint32_t edged_height,
 				  uint32_t quarterpel,
@@ -249,19 +253,14 @@ image_interpolate(const IMAGE * refn,
 {
 	const uint32_t offset = EDGE_SIZE2 * (edged_width + 1); /* we only interpolate half of the edge area */
 	const uint32_t stride_add = 7 * edged_width;
-#if 0
-	const uint32_t edged_width2 = edged_width / 2;
-	const uint32_t edged_height2 = edged_height / 2;
-	const uint32_t offset2 = EDGE_SIZE2 * (edged_width2 + 1);
-	const uint32_t stride_add2 = 7 * edged_width2;
-#endif
-	uint8_t *n_ptr, *h_ptr, *v_ptr, *hv_ptr;
+
+	uint8_t *n_ptr;
+	uint8_t *h_ptr, *v_ptr, *hv_ptr;
 	uint32_t x, y;
 
-
-	n_ptr = refn->y;
-	h_ptr = refh->y;
-	v_ptr = refv->y;
+	n_ptr = (uint8_t*)refn;
+	h_ptr = refh;
+	v_ptr = refv;
 
 	n_ptr -= offset;
 	h_ptr -= offset;
@@ -290,8 +289,8 @@ image_interpolate(const IMAGE * refn,
 			n_ptr += stride_add;
 		}
 
-		h_ptr = refh->y + (edged_height - EDGE_SIZE - EDGE_SIZE2)*edged_width - EDGE_SIZE2;
-		hv_ptr = refhv->y + (edged_height - EDGE_SIZE - EDGE_SIZE2)*edged_width - EDGE_SIZE2;
+		h_ptr = refh + (edged_height - EDGE_SIZE - EDGE_SIZE2)*edged_width - EDGE_SIZE2;
+		hv_ptr = refhv + (edged_height - EDGE_SIZE - EDGE_SIZE2)*edged_width - EDGE_SIZE2;
 
 		for (y = 0; y < (edged_height - EDGE_SIZE); y = y + 8) {
 			hv_ptr -= stride_add;
@@ -307,7 +306,7 @@ image_interpolate(const IMAGE * refn,
 		}
 	} else {
 
-		hv_ptr = refhv->y;
+		hv_ptr = refhv;
 		hv_ptr -= offset;
 
 		for (y = 0; y < (edged_height - EDGE_SIZE); y += 8) {
@@ -333,123 +332,6 @@ image_interpolate(const IMAGE * refn,
 			n_ptr += stride_add;
 		}
 	}
-/*
-#ifdef BFRAMES
-	n_ptr = refn->u;
-	h_ptr = refh->u;
-	v_ptr = refv->u;
-	hv_ptr = refhv->u;
-
-	n_ptr -= offset2;
-	h_ptr -= offset2;
-	v_ptr -= offset2;
-	hv_ptr -= offset2;
-
-	for (y = 0; y < edged_height2; y += 8) {
-		for (x = 0; x < edged_width2; x += 8) {
-			interpolate8x8_halfpel_h(h_ptr, n_ptr, edged_width2, rounding);
-			interpolate8x8_halfpel_v(v_ptr, n_ptr, edged_width2, rounding);
-			interpolate8x8_halfpel_hv(hv_ptr, n_ptr, edged_width2, rounding);
-
-			n_ptr += 8;
-			h_ptr += 8;
-			v_ptr += 8;
-			hv_ptr += 8;
-		}
-		h_ptr += stride_add2;
-		v_ptr += stride_add2;
-		hv_ptr += stride_add2;
-		n_ptr += stride_add2;
-	}
-
-	n_ptr = refn->v;
-	h_ptr = refh->v;
-	v_ptr = refv->v;
-	hv_ptr = refhv->v;
-
-	n_ptr -= offset2;
-	h_ptr -= offset2;
-	v_ptr -= offset2;
-	hv_ptr -= offset2;
-
-	for (y = 0; y < edged_height2; y = y + 8) {
-		for (x = 0; x < edged_width2; x = x + 8) {
-			interpolate8x8_halfpel_h(h_ptr, n_ptr, edged_width2, rounding);
-			interpolate8x8_halfpel_v(v_ptr, n_ptr, edged_width2, rounding);
-			interpolate8x8_halfpel_hv(hv_ptr, n_ptr, edged_width2, rounding);
-
-			n_ptr += 8;
-			h_ptr += 8;
-			v_ptr += 8;
-			hv_ptr += 8;
-		}
-		h_ptr += stride_add2;
-		v_ptr += stride_add2;
-		hv_ptr += stride_add2;
-		n_ptr += stride_add2;
-	}
-#endif
-*/
-	/*
-	   interpolate_halfpel_h(
-	   refh->y - offset,
-	   refn->y - offset,
-	   edged_width, edged_height,
-	   rounding);
-
-	   interpolate_halfpel_v(
-	   refv->y - offset,
-	   refn->y - offset,
-	   edged_width, edged_height,
-	   rounding);
-
-	   interpolate_halfpel_hv(
-	   refhv->y - offset,
-	   refn->y - offset,
-	   edged_width, edged_height,
-	   rounding);
-	 */
-
-	/* uv-image-based compensation
-	   offset = EDGE_SIZE2 * (edged_width / 2 + 1);
-
-	   interpolate_halfpel_h(
-	   refh->u - offset,
-	   refn->u - offset,
-	   edged_width / 2, edged_height / 2,
-	   rounding);
-
-	   interpolate_halfpel_v(
-	   refv->u - offset,
-	   refn->u - offset,
-	   edged_width / 2, edged_height / 2,
-	   rounding);
-
-	   interpolate_halfpel_hv(
-	   refhv->u - offset,
-	   refn->u - offset,
-	   edged_width / 2, edged_height / 2,
-	   rounding);
-
-
-	   interpolate_halfpel_h(
-	   refh->v - offset,
-	   refn->v - offset,
-	   edged_width / 2, edged_height / 2,
-	   rounding);
-
-	   interpolate_halfpel_v(
-	   refv->v - offset,
-	   refn->v - offset,
-	   edged_width / 2, edged_height / 2,
-	   rounding);
-
-	   interpolate_halfpel_hv(
-	   refhv->v - offset,
-	   refn->v - offset,
-	   edged_width / 2, edged_height / 2,
-	   rounding);
-	 */
 }
 
 
@@ -507,30 +389,46 @@ safe_packed_conv(uint8_t * x_ptr, int x_stride,
 				 uint8_t * y_ptr, uint8_t * u_ptr, uint8_t * v_ptr,
 				 int y_stride, int uv_stride,
 				 int width, int height, int vflip,
-				 packedFunc * func_opt, packedFunc func_c, int size)
+				 packedFunc * func_opt, packedFunc func_c, 
+                 int size, int interlacing)
 {
-	int width_opt, width_c;
+	int width_opt, width_c, height_opt;
+
+    if (width<0 || width==1 || height==1) return; /* forget about it */
 
 	if (func_opt != func_c && x_stride < size*((width+15)/16)*16)
 	{
 		width_opt = width & (~15);
-		width_c = width - width_opt;
+		width_c = (width - width_opt) & (~1);
 	}
-	else
+	else if (func_opt != func_c && !(width&1) && (size==3))
 	{
-		width_opt = width;
+        /* MMX reads 4 bytes per pixel for RGB/BGR */
+        width_opt = width - 2;
+        width_c = 2;
+    }
+    else {
+        /* Enforce the width to be divisable by two. */
+		width_opt = width & (~1);
 		width_c = 0;
 	}
 
+    /* packed conversions require height to be divisable by 2
+       (or even by 4 for interlaced conversion) */
+    if (interlacing)
+        height_opt = height & (~3);
+    else
+        height_opt = height & (~1);
+
 	func_opt(x_ptr, x_stride,
 			y_ptr, u_ptr, v_ptr, y_stride, uv_stride,
-			width_opt, height, vflip);
+			width_opt, height_opt, vflip);
 
 	if (width_c)
 	{
 		func_c(x_ptr + size*width_opt, x_stride,
 			y_ptr + width_opt, u_ptr + width_opt/2, v_ptr + width_opt/2,
-			y_stride, uv_stride, width_c, height, vflip);
+			y_stride, uv_stride, width_c, height_opt, vflip);
 	}
 }
 
@@ -559,7 +457,7 @@ image_input(IMAGE * image,
 			src[0], src_stride[0], image->y, image->u, image->v,
 			edged_width, edged_width2, width, height, (csp & XVID_CSP_VFLIP),
 			interlacing?rgb555i_to_yv12  :rgb555_to_yv12,
-			interlacing?rgb555i_to_yv12_c:rgb555_to_yv12_c, 2);
+			interlacing?rgb555i_to_yv12_c:rgb555_to_yv12_c, 2, interlacing);
 		break;
 
 	case XVID_CSP_RGB565:
@@ -567,7 +465,7 @@ image_input(IMAGE * image,
 			src[0], src_stride[0], image->y, image->u, image->v,
 			edged_width, edged_width2, width, height, (csp & XVID_CSP_VFLIP),
 			interlacing?rgb565i_to_yv12  :rgb565_to_yv12,
-			interlacing?rgb565i_to_yv12_c:rgb565_to_yv12_c, 2);
+			interlacing?rgb565i_to_yv12_c:rgb565_to_yv12_c, 2, interlacing);
 		break;
 
 
@@ -576,7 +474,7 @@ image_input(IMAGE * image,
 			src[0], src_stride[0], image->y, image->u, image->v,
 			edged_width, edged_width2, width, height, (csp & XVID_CSP_VFLIP),
 			interlacing?bgri_to_yv12  :bgr_to_yv12,
-			interlacing?bgri_to_yv12_c:bgr_to_yv12_c, 3);
+			interlacing?bgri_to_yv12_c:bgr_to_yv12_c, 3, interlacing);
 		break;
 
 	case XVID_CSP_BGRA:
@@ -584,7 +482,7 @@ image_input(IMAGE * image,
 			src[0], src_stride[0], image->y, image->u, image->v,
 			edged_width, edged_width2, width, height, (csp & XVID_CSP_VFLIP),
 			interlacing?bgrai_to_yv12  :bgra_to_yv12,
-			interlacing?bgrai_to_yv12_c:bgra_to_yv12_c, 4);
+			interlacing?bgrai_to_yv12_c:bgra_to_yv12_c, 4, interlacing);
 		break;
 
 	case XVID_CSP_ABGR :
@@ -592,15 +490,23 @@ image_input(IMAGE * image,
 			src[0], src_stride[0], image->y, image->u, image->v,
 			edged_width, edged_width2, width, height, (csp & XVID_CSP_VFLIP),
 			interlacing?abgri_to_yv12  :abgr_to_yv12,
-			interlacing?abgri_to_yv12_c:abgr_to_yv12_c, 4);
+			interlacing?abgri_to_yv12_c:abgr_to_yv12_c, 4, interlacing);
 		break;
 
+	case XVID_CSP_RGB:
+		safe_packed_conv(
+			src[0], src_stride[0], image->y, image->u, image->v,
+			edged_width, edged_width2, width, height, (csp & XVID_CSP_VFLIP),
+			interlacing?rgbi_to_yv12  :rgb_to_yv12,
+			interlacing?rgbi_to_yv12_c:rgb_to_yv12_c, 3, interlacing);
+		break;
+            
 	case XVID_CSP_RGBA :
 		safe_packed_conv(
 			src[0], src_stride[0], image->y, image->u, image->v,
 			edged_width, edged_width2, width, height, (csp & XVID_CSP_VFLIP),
 			interlacing?rgbai_to_yv12  :rgba_to_yv12,
-			interlacing?rgbai_to_yv12_c:rgba_to_yv12_c, 4);
+			interlacing?rgbai_to_yv12_c:rgba_to_yv12_c, 4, interlacing);
 		break;
             
 	case XVID_CSP_ARGB:
@@ -608,7 +514,7 @@ image_input(IMAGE * image,
 			src[0], src_stride[0], image->y, image->u, image->v,
 			edged_width, edged_width2, width, height, (csp & XVID_CSP_VFLIP),
 			interlacing?argbi_to_yv12  : argb_to_yv12,
-			interlacing?argbi_to_yv12_c: argb_to_yv12_c, 4);
+			interlacing?argbi_to_yv12_c: argb_to_yv12_c, 4, interlacing);
 		break;
 
 	case XVID_CSP_YUY2:
@@ -616,7 +522,7 @@ image_input(IMAGE * image,
 			src[0], src_stride[0], image->y, image->u, image->v,
 			edged_width, edged_width2, width, height, (csp & XVID_CSP_VFLIP),
 			interlacing?yuyvi_to_yv12  :yuyv_to_yv12,
-			interlacing?yuyvi_to_yv12_c:yuyv_to_yv12_c, 2);
+			interlacing?yuyvi_to_yv12_c:yuyv_to_yv12_c, 2, interlacing);
 		break;
 
 	case XVID_CSP_YVYU:		/* u/v swapped */
@@ -624,7 +530,7 @@ image_input(IMAGE * image,
 			src[0], src_stride[0], image->y, image->v, image->u,
 			edged_width, edged_width2, width, height, (csp & XVID_CSP_VFLIP),
 			interlacing?yuyvi_to_yv12  :yuyv_to_yv12,
-			interlacing?yuyvi_to_yv12_c:yuyv_to_yv12_c, 2);
+			interlacing?yuyvi_to_yv12_c:yuyv_to_yv12_c, 2, interlacing);
 		break;
 
 	case XVID_CSP_UYVY:
@@ -632,7 +538,7 @@ image_input(IMAGE * image,
 			src[0], src_stride[0], image->y, image->u, image->v,
 			edged_width, edged_width2, width, height, (csp & XVID_CSP_VFLIP),
 			interlacing?uyvyi_to_yv12  :uyvy_to_yv12,
-			interlacing?uyvyi_to_yv12_c:uyvy_to_yv12_c, 2);
+			interlacing?uyvyi_to_yv12_c:uyvy_to_yv12_c, 2, interlacing);
 		break;
 
 	case XVID_CSP_I420:	/* YCbCr == YUV == internal colorspace for MPEG */
@@ -736,7 +642,7 @@ image_output(IMAGE * image,
 			dst[0], dst_stride[0], image->y, image->u, image->v,
 			edged_width, edged_width2, width, height, (csp & XVID_CSP_VFLIP),
 			interlacing?yv12_to_rgb555i  :yv12_to_rgb555,
-			interlacing?yv12_to_rgb555i_c:yv12_to_rgb555_c, 2);
+			interlacing?yv12_to_rgb555i_c:yv12_to_rgb555_c, 2, interlacing);
 		return 0;
 
 	case XVID_CSP_RGB565:
@@ -744,7 +650,7 @@ image_output(IMAGE * image,
 			dst[0], dst_stride[0], image->y, image->u, image->v,
 			edged_width, edged_width2, width, height, (csp & XVID_CSP_VFLIP),
 			interlacing?yv12_to_rgb565i  :yv12_to_rgb565,
-			interlacing?yv12_to_rgb565i_c:yv12_to_rgb565_c, 2);
+			interlacing?yv12_to_rgb565i_c:yv12_to_rgb565_c, 2, interlacing);
 		return 0;
 
     case XVID_CSP_BGR:
@@ -752,7 +658,7 @@ image_output(IMAGE * image,
 			dst[0], dst_stride[0], image->y, image->u, image->v,
 			edged_width, edged_width2, width, height, (csp & XVID_CSP_VFLIP),
 			interlacing?yv12_to_bgri  :yv12_to_bgr,
-			interlacing?yv12_to_bgri_c:yv12_to_bgr_c, 3);
+			interlacing?yv12_to_bgri_c:yv12_to_bgr_c, 3, interlacing);
 		return 0;
 
 	case XVID_CSP_BGRA:
@@ -760,7 +666,7 @@ image_output(IMAGE * image,
 			dst[0], dst_stride[0], image->y, image->u, image->v,
 			edged_width, edged_width2, width, height, (csp & XVID_CSP_VFLIP),
 			interlacing?yv12_to_bgrai  :yv12_to_bgra,
-			interlacing?yv12_to_bgrai_c:yv12_to_bgra_c, 4);
+			interlacing?yv12_to_bgrai_c:yv12_to_bgra_c, 4, interlacing);
 		return 0;
 
 	case XVID_CSP_ABGR:
@@ -768,7 +674,15 @@ image_output(IMAGE * image,
 			dst[0], dst_stride[0], image->y, image->u, image->v,
 			edged_width, edged_width2, width, height, (csp & XVID_CSP_VFLIP),
 			interlacing?yv12_to_abgri  :yv12_to_abgr,
-			interlacing?yv12_to_abgri_c:yv12_to_abgr_c, 4);
+			interlacing?yv12_to_abgri_c:yv12_to_abgr_c, 4, interlacing);
+		return 0;
+
+	case XVID_CSP_RGB:
+		safe_packed_conv(
+			dst[0], dst_stride[0], image->y, image->u, image->v,
+			edged_width, edged_width2, width, height, (csp & XVID_CSP_VFLIP),
+			interlacing?yv12_to_rgbi  :yv12_to_rgb,
+			interlacing?yv12_to_rgbi_c:yv12_to_rgb_c, 3, interlacing);
 		return 0;
 
 	case XVID_CSP_RGBA:
@@ -776,7 +690,7 @@ image_output(IMAGE * image,
 			dst[0], dst_stride[0], image->y, image->u, image->v,
 			edged_width, edged_width2, width, height, (csp & XVID_CSP_VFLIP),
 			interlacing?yv12_to_rgbai  :yv12_to_rgba,
-			interlacing?yv12_to_rgbai_c:yv12_to_rgba_c, 4);
+			interlacing?yv12_to_rgbai_c:yv12_to_rgba_c, 4, interlacing);
 		return 0;
 
 	case XVID_CSP_ARGB:
@@ -784,7 +698,7 @@ image_output(IMAGE * image,
 			dst[0], dst_stride[0], image->y, image->u, image->v,
 			edged_width, edged_width2, width, height, (csp & XVID_CSP_VFLIP),
 			interlacing?yv12_to_argbi  :yv12_to_argb,
-			interlacing?yv12_to_argbi_c:yv12_to_argb_c, 4);
+			interlacing?yv12_to_argbi_c:yv12_to_argb_c, 4, interlacing);
 		return 0;
 
 	case XVID_CSP_YUY2:
@@ -792,7 +706,7 @@ image_output(IMAGE * image,
 			dst[0], dst_stride[0], image->y, image->u, image->v,
 			edged_width, edged_width2, width, height, (csp & XVID_CSP_VFLIP),
 			interlacing?yv12_to_yuyvi  :yv12_to_yuyv,
-			interlacing?yv12_to_yuyvi_c:yv12_to_yuyv_c, 2);
+			interlacing?yv12_to_yuyvi_c:yv12_to_yuyv_c, 2, interlacing);
 		return 0;
 
 	case XVID_CSP_YVYU:		/* u,v swapped */
@@ -800,7 +714,7 @@ image_output(IMAGE * image,
 			dst[0], dst_stride[0], image->y, image->v, image->u,
 			edged_width, edged_width2, width, height, (csp & XVID_CSP_VFLIP),
 			interlacing?yv12_to_yuyvi  :yv12_to_yuyv,
-			interlacing?yv12_to_yuyvi_c:yv12_to_yuyv_c, 2);
+			interlacing?yv12_to_yuyvi_c:yv12_to_yuyv_c, 2, interlacing);
 		return 0;
 
 	case XVID_CSP_UYVY:
@@ -808,7 +722,7 @@ image_output(IMAGE * image,
 			dst[0], dst_stride[0], image->y, image->u, image->v,
 			edged_width, edged_width2, width, height, (csp & XVID_CSP_VFLIP),
 			interlacing?yv12_to_uyvyi  :yv12_to_uyvy,
-			interlacing?yv12_to_uyvyi_c:yv12_to_uyvy_c, 2);
+			interlacing?yv12_to_uyvyi_c:yv12_to_uyvy_c, 2, interlacing);
 		return 0;
 
 	case XVID_CSP_I420: /* YCbCr == YUV == internal colorspace for MPEG */
@@ -950,6 +864,98 @@ long plane_sse(uint8_t *orig,
 	}
 
 	return (sse);
+}
+
+void image_block_variance(IMAGE * orig_image,
+				          uint16_t stride, 
+				          MACROBLOCK *mbs,
+				          uint16_t mb_width, 
+				          uint16_t mb_height)
+{
+	DECLARE_ALIGNED_MATRIX(sums, 1, 4, uint16_t, CACHE_LINE);
+	DECLARE_ALIGNED_MATRIX(squares, 1, 4, uint32_t, CACHE_LINE);
+	
+	int x, y, i, j;
+	uint8_t *orig_y = orig_image->y;
+	uint8_t *orig_u = orig_image->u;
+	uint8_t *orig_v = orig_image->v;
+
+	for (y = 0; y < mb_height; y++) {
+		for (x = 0; x < mb_width; x++) {
+			MACROBLOCK *pMB = &mbs[x + y * mb_width];
+			uint32_t var4[4];
+			uint32_t sum = 0, square = 0;
+
+			/* y-blocks */
+			for (j = 0; j < 2; j++) {
+				for (i = 0; i < 2; i++) {
+					int lsum = blocksum8(orig_y + ((y<<4) + (j<<3))*stride + (x<<4) + (i<<3), 
+										 stride, sums, squares);
+					int lsquare = (squares[0] + squares[1] + squares[2] + squares[3])<<6;
+
+					sum += lsum;
+					square += lsquare;
+
+					var4[0] = (squares[0]<<4) - sums[0]*sums[0];
+					var4[1] = (squares[1]<<4) - sums[1]*sums[1];
+					var4[2] = (squares[2]<<4) - sums[2]*sums[2];
+					var4[3] = (squares[3]<<4) - sums[3]*sums[3];
+
+					pMB->rel_var8[j*2 + i] = lsquare - lsum*lsum;
+					if (pMB->rel_var8[j*2 + i])
+						pMB->rel_var8[j*2 + i] = ((var4[0] + var4[1] + var4[2] + var4[3])<<8) / 
+												 pMB->rel_var8[j*2 + i]; /* 4*(Var(Di)/Var(D)) */
+					else 
+						pMB->rel_var8[j*2 + i] = 64;
+				}
+			}
+
+			/* u */
+			{
+				int lsum = blocksum8(orig_u + (y<<3)*(stride>>1) + (x<<3), 
+									 stride, sums, squares);
+				int lsquare = (squares[0] + squares[1] + squares[2] + squares[3])<<6;
+
+				sum += lsum;
+				square += lsquare;
+
+				var4[0] = (squares[0]<<4) - sums[0]*sums[0];
+				var4[1] = (squares[1]<<4) - sums[1]*sums[1];
+				var4[2] = (squares[2]<<4) - sums[2]*sums[2];
+				var4[3] = (squares[3]<<4) - sums[3]*sums[3];
+
+				pMB->rel_var8[4] = lsquare - lsum*lsum;
+				if (pMB->rel_var8[4])
+					pMB->rel_var8[4] = ((var4[0] + var4[1] + var4[2] + var4[3])<<8) / 
+										 pMB->rel_var8[4]; /* 4*(Var(Di)/Var(D)) */
+				else 
+					pMB->rel_var8[4] = 64;
+			}
+
+			/* v */
+			{
+				int lsum = blocksum8(orig_v + (y<<3)*(stride>>1) + (x<<3), 
+									 stride, sums, squares);
+				int lsquare = (squares[0] + squares[1] + squares[2] + squares[3])<<6;
+
+				sum += lsum;
+				square += lsquare;
+
+				var4[0] = (squares[0]<<4) - sums[0]*sums[0];
+				var4[1] = (squares[1]<<4) - sums[1]*sums[1];
+				var4[2] = (squares[2]<<4) - sums[2]*sums[2];
+				var4[3] = (squares[3]<<4) - sums[3]*sums[3];
+
+				pMB->rel_var8[5] = lsquare - lsum*lsum;
+				if (pMB->rel_var8[5])
+					pMB->rel_var8[5] = ((var4[0] + var4[1] + var4[2] + var4[3])<<8) / 
+										 pMB->rel_var8[5]; /* 4*(Var(Di)/Var(D)) */
+				else 
+					pMB->rel_var8[5] = 64;
+			}
+
+		}
+	}
 }
 
 #if 0
@@ -1137,3 +1143,70 @@ image_clear(IMAGE * img, int width, int height, int edged_width,
 		p += edged_width/2;
 	}
 }
+
+/****************************************************************************/
+
+static void (*deintl_core)(uint8_t *, int width, int height, const int stride) = 0;
+extern void xvid_deinterlace_sse(uint8_t *, int width, int height, const int stride);
+
+#define CLIP_255(x)   ( ((x)&~255) ? ((-(x)) >> (8*sizeof((x))-1))&0xff : (x) )
+
+static void deinterlace_c(uint8_t *pix, int width, int height, const int bps)
+{
+  pix += bps;
+  while(width-->0)
+  {
+    int p1 = pix[-bps];
+    int p2 = pix[0];
+    int p0 = p2;
+    int j = (height>>1) - 1;
+    int V;
+    unsigned char *P = pix++;
+    while(j-->0)
+    {
+      const int  p3 = P[  bps];
+      const int  p4 = P[2*bps];
+      V =  ((p1+p3+1)>>1) + ((p2 - ((p0+p4+1)>>1)) >> 2);
+      P[0] = CLIP_255( V );
+      p0 = p2;
+      p1 = p3;
+      p2 = p4;
+      P += 2*bps;
+    }
+    V =  ((p1+p1+1)>>1) + ((p2 - ((p0+p2+1)>>1)) >> 2);
+    P[0] = CLIP_255( V );
+  }
+}
+#undef CLIP_255
+
+int xvid_image_deinterlace(xvid_image_t* img, int width, int height, int bottom_first)
+{
+	if (height&1)
+		return 0;
+	if (img->csp!=XVID_CSP_PLANAR && img->csp!=XVID_CSP_I420 && img->csp!=XVID_CSP_YV12)
+		return 0;       /* not yet supported */	
+	if (deintl_core==0) {
+		deintl_core = deinterlace_c;
+#if defined(ARCH_IS_IA32) || defined(ARCH_IS_X86_64)
+		{
+			int cpu_flags = check_cpu_features();
+			if (cpu_flags & XVID_CPU_MMX)
+				deintl_core = xvid_deinterlace_sse;
+		}
+#endif			
+	}
+	if (!bottom_first) {
+		deintl_core(img->plane[0], width,    height,    img->stride[0]);
+		deintl_core(img->plane[1], width>>1, height>>1, img->stride[1]);
+		deintl_core(img->plane[2], width>>1, height>>1, img->stride[2]);
+	}
+	else {
+		deintl_core((uint8_t *)img->plane[0] + ( height    -1)*img->stride[0], width,    height,    -img->stride[0]);
+		deintl_core((uint8_t *)img->plane[1] + ((height>>1)-1)*img->stride[1], width>>1, height>>1, -img->stride[1]);
+		deintl_core((uint8_t *)img->plane[2] + ((height>>1)-1)*img->stride[2], width>>1, height>>1, -img->stride[2]);
+	}
+	emms();
+
+	return 1;
+}
+

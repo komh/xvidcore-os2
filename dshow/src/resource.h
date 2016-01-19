@@ -9,6 +9,7 @@
 #define VERSION_RES_MAJOR_VER           8
 #define IDD_ABOUT                       102
 #define IDB_LOGO                        103
+#define IDI_ICON                        104
 #define IDC_BRIGHTNESS                  1002
 #define IDC_DEBLOCK_UV                  1003
 #define IDC_DEBLOCK_Y                   1004
@@ -21,9 +22,10 @@
 #define IDC_DIVX                        1010
 #define IDC_COMPAT                      1011
 #define IDC_MP4V                        1012
-#define IDC_DX50                        1013
+#define IDC_3IVX                        1013
 #define IDC_DERINGUV                    1014
 #define IDC_USE_AR                      1015
+#define IDC_CORE                        1016
 #define VERSION_RES_LANGUAGE            0x409
 #define VERSION_RES_CHARSET             1252
 #define IDC_STATIC                      -1
@@ -32,9 +34,9 @@
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        105
+#define _APS_NEXT_RESOURCE_VALUE        106
 #define _APS_NEXT_COMMAND_VALUE         40001
-#define _APS_NEXT_CONTROL_VALUE         1016
+#define _APS_NEXT_CONTROL_VALUE         1017
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

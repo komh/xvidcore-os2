@@ -1,10 +1,10 @@
 /*****************************************************************************
  *
  *  XVID MPEG-4 VIDEO CODEC
- *  - MB Transfert/Quantization functions -
+ *  - MB Transfer/Quantization functions -
  *
- *  Copyright(C) 2001-2003  Peter Ross <pross@xvid.org>
- *               2001-2003  Michael Militzer <isibaar@xvid.org>
+ *  Copyright(C) 2001-2010  Peter Ross <pross@xvid.org>
+ *               2001-2010  Michael Militzer <michael@xvid.org>
  *               2003       Edouard Gomez <ed.gomez@free.fr>
  *
  *  This program is free software ; you can redistribute it and/or modify
@@ -21,7 +21,7 @@
  *  along with this program ; if not, write to the Free Software
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  *
- * $Id: mbtransquant.c,v 1.29 2005/11/22 10:23:01 suxen_drol Exp $
+ * $Id: mbtransquant.c 1985 2011-05-18 09:02:35Z Isibaar $
  *
  ****************************************************************************/
 
@@ -40,6 +40,7 @@
 #include "../dct/fdct.h"
 #include "../dct/idct.h"
 #include "../quant/quant.h"
+#include "../motion/sad.h"
 #include "../encoder.h"
 
 #include  "../quant/quant_matrix.h"
@@ -122,27 +123,30 @@ MBQuantIntra(const MBParam * pParam,
 			 int16_t qcoeff[6 * 64],
 			 int16_t data[6*64])
 {
-	int mpeg;
 	int scaler_lum, scaler_chr;
+	quant_intraFuncPtr quant;
 
-	quant_intraFuncPtr const quant[2] =
-		{
-			quant_h263_intra,
-			quant_mpeg_intra
-		};
+	/* check if quant matrices need to be re-initialized with new quant */
+	if (pParam->vol_flags & XVID_VOL_MPEGQUANT) {
+		if (pParam->last_quant_initialized_intra != pMB->quant) {
+			init_intra_matrix(pParam->mpeg_quant_matrices, pMB->quant);
+		}
+		quant = quant_mpeg_intra;
+	} else {
+		quant = quant_h263_intra;
+	}
 
-	mpeg = !!(pParam->vol_flags & XVID_VOL_MPEGQUANT);
 	scaler_lum = get_dc_scaler(pMB->quant, 1);
 	scaler_chr = get_dc_scaler(pMB->quant, 0);
 
 	/* Quantize the block */
 	start_timer();
-	quant[mpeg](&data[0 * 64], &qcoeff[0 * 64], pMB->quant, scaler_lum, pParam->mpeg_quant_matrices);
-	quant[mpeg](&data[1 * 64], &qcoeff[1 * 64], pMB->quant, scaler_lum, pParam->mpeg_quant_matrices);
-	quant[mpeg](&data[2 * 64], &qcoeff[2 * 64], pMB->quant, scaler_lum, pParam->mpeg_quant_matrices);
-	quant[mpeg](&data[3 * 64], &qcoeff[3 * 64], pMB->quant, scaler_lum, pParam->mpeg_quant_matrices);
-	quant[mpeg](&data[4 * 64], &qcoeff[4 * 64], pMB->quant, scaler_chr, pParam->mpeg_quant_matrices);
-	quant[mpeg](&data[5 * 64], &qcoeff[5 * 64], pMB->quant, scaler_chr, pParam->mpeg_quant_matrices);
+	quant(&data[0 * 64], &qcoeff[0 * 64], pMB->quant, scaler_lum, pParam->mpeg_quant_matrices);
+	quant(&data[1 * 64], &qcoeff[1 * 64], pMB->quant, scaler_lum, pParam->mpeg_quant_matrices);
+	quant(&data[2 * 64], &qcoeff[2 * 64], pMB->quant, scaler_lum, pParam->mpeg_quant_matrices);
+	quant(&data[3 * 64], &qcoeff[3 * 64], pMB->quant, scaler_lum, pParam->mpeg_quant_matrices);
+	quant(&data[4 * 64], &qcoeff[4 * 64], pMB->quant, scaler_chr, pParam->mpeg_quant_matrices);
+	quant(&data[5 * 64], &qcoeff[5 * 64], pMB->quant, scaler_chr, pParam->mpeg_quant_matrices);
 	stop_quant_timer();
 }
 
@@ -183,7 +187,10 @@ dct_quantize_trellis_c(int16_t *const Out,
 					   const uint16_t * const Zigzag,
 					   const uint16_t * const QuantMatrix,
 					   int Non_Zero,
-					   int Sum);
+					   int Sum,
+					   int Lambda_Mod,
+					   const uint32_t rel_var8,
+					   const int Metric);
 
 /* Quantize all blocks -- Inter mode */
 static __inline uint8_t
@@ -235,7 +242,10 @@ MBQuantInter(const MBParam * pParam,
 										 pMB->quant, &scan_tables[0][0],
 										 matrix,
 										 63,
-										 sum);
+										 sum,
+										 pMB->lambda[i],
+										 pMB->rel_var8[i],
+										 !!(frame->vop_flags & XVID_VOP_RD_PSNRHVSM));
 		}
 		stop_quant_timer();
 
@@ -756,6 +766,25 @@ Find_Last(const int16_t *C, const uint16_t *Zigzag, int i)
 	return -1;
 }
 
+#define TRELLIS_MIN_EFFORT	3
+
+static __inline uint32_t calc_mseh(int16_t dQ, uint16_t mask, 
+                                   const int index, const int Lambda)
+{
+	uint32_t t = (mask * Inv_iMask_Coeff[index] + 32) >> 7;
+	uint16_t u = abs(dQ) << 4;
+	uint16_t thresh = (t < 65536) ? t : 65535;
+
+	if (u <= thresh)	
+		u = 0; /* The error is not perceivable */
+	else 
+		u -= thresh; 
+
+	u = ((u + iCSF_Round[index]) * iCSF_Coeff[index]) >> 16;
+
+	return (((Lambda*u*u)>>4) + 4*Lambda*dQ*dQ) / 5;
+}
+
 /* this routine has been strippen of all debug code */
 static int
 dct_quantize_trellis_c(int16_t *const Out,
@@ -764,7 +793,10 @@ dct_quantize_trellis_c(int16_t *const Out,
 					   const uint16_t * const Zigzag,
 					   const uint16_t * const QuantMatrix,
 					   int Non_Zero,
-					   int Sum)
+					   int Sum,
+					   int Lambda_Mod,
+					   const uint32_t rel_var8,
+					   const int Metric)
 {
 
 	/* Note: We should search last non-zero coeffs on *real* DCT input coeffs
@@ -779,7 +811,7 @@ dct_quantize_trellis_c(int16_t *const Out,
 	uint32_t * const Run_Costs = Run_Costs0 + 1;
 
 	/* it's 1/lambda, actually */
-	const int Lambda = Trellis_Lambda_Tabs[Q-1];
+	const int Lambda = (Lambda_Mod*Trellis_Lambda_Tabs[Q-1])>>LAMBDA_EXP;
 
 	int Run_Start = -1;
 	uint32_t Min_Cost = 2<<TL_SHIFT;
@@ -789,12 +821,14 @@ dct_quantize_trellis_c(int16_t *const Out,
 
 	int i, j;
 
+	uint32_t mask = (Metric) ? ((isqrt(2*coeff8_energy(In)*rel_var8) + 48) >> 6) : 0;
+
 	/* source (w/ CBP penalty) */
 	Run_Costs[-1] = 2<<TL_SHIFT;
 
 	Non_Zero = Find_Last(Out, Zigzag, Non_Zero);
-	if (Non_Zero<0)
-		return 0; /* Sum is zero if there are only zero coeffs */
+	if (Non_Zero < TRELLIS_MIN_EFFORT) 
+		Non_Zero = TRELLIS_MIN_EFFORT;
 
 	for(i=0; i<=Non_Zero; i++) {
 		const int q = ((Q*QuantMatrix[Zigzag[i]])>>4);
@@ -804,7 +838,7 @@ dct_quantize_trellis_c(int16_t *const Out,
 
 		const int AC = In[Zigzag[i]];
 		const int Level1 = Out[Zigzag[i]];
-		const unsigned int Dist0 = Lambda* AC*AC;
+		const unsigned int Dist0 = (Metric) ? (calc_mseh(AC, mask, Zigzag[i], Lambda)) : (Lambda* AC*AC);
 		uint32_t Best_Cost = 0xf0000000;
 		Last_Cost += Dist0;
 
@@ -821,7 +855,7 @@ dct_quantize_trellis_c(int16_t *const Out,
 				Nodes[i].Level = 1;
 				dQ = Lev0 - AC;
 			}
-			Cost0 = Lambda*dQ*dQ;
+			Cost0 = (Metric) ? (calc_mseh(dQ, mask, Zigzag[i], Lambda)) : (Lambda*dQ*dQ);
 
 			Nodes[i].Run = 1;
 			Best_Cost = (Code_Len20[0]<<TL_SHIFT) + Run_Costs[i-1]+Cost0;
@@ -876,8 +910,14 @@ dct_quantize_trellis_c(int16_t *const Out,
 				Tbl_L2_Last = (Level2>=- 6) ? B16_17_Code_Len_Last[Level2^-1] : Code_Len0;
 			}
 
-			Dist1 = Lambda*dQ1*dQ1;
-			Dist2 = Lambda*dQ2*dQ2;
+			if (Metric) {
+				Dist1 = calc_mseh(dQ1, mask, Zigzag[i], Lambda);
+				Dist2 = calc_mseh(dQ2, mask, Zigzag[i], Lambda);
+			}
+			else {
+				Dist1 = Lambda*dQ1*dQ1;
+				Dist2 = Lambda*dQ2*dQ2;
+			}
 			dDist21 = Dist2-Dist1;
 
 			for(Run=i-Run_Start; Run>0; --Run)

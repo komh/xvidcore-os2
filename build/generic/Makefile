@@ -1,12 +1,12 @@
 ##############################################################################
 #
-# - Unified Makefile for XviD for *nix environments -
+# - Unified Makefile for Xvid for *nix environments -
 #
 # Copyright(C) 2003-2004 Edouard Gomez <ed.gomez@free.fr>
 #
 #
 # Description:
-#  This Makefile allows building XviD sources to obtain a shared library
+#  This Makefile allows building Xvid sources to obtain a shared library
 #  and a static library. This Makefile uses variables defined in the
 #  platform.inc file. This platform.inc file is usually created by the
 #  ./configure script whenever a unix shell is available.
@@ -41,7 +41,9 @@
 ##############################################################################
 
 include sources.inc
+ifeq ($(findstring $(MAKECMDGOALS), clean distclean mrproper),)
 include platform.inc
+endif
 
 RM = rm -rf
 
@@ -68,10 +70,10 @@ VPATH     = $(SRC_DIR):$(BUILD_DIR)
 
 .SUFFIXES: .$(OBJECT_EXTENSION) .$(ASSEMBLY_EXTENSION) .c
 
-all: $(STATIC_LIB) $(SHARED_LIB)
+all: info $(STATIC_LIB) $(SHARED_LIB)
 	@echo
 	@echo "---------------------------------------------------------------"
-	@echo " XviD has been successfully built."
+	@echo " Xvid has been successfully built."
 	@echo
 	@echo " * Binaries are currently located in the '$(BUILD_DIR)' directory"
 	@echo " * To install them on your system, you can run '# make install'"
@@ -98,6 +100,8 @@ $(BUILD_DIR):
 # Generic C rule
 #-----------------------------------------------------------------------------
 
+$(PPC_ALTIVEC_OBJECTS): CFLAGS+= $(ALTIVEC_CFLAGS)
+
 .c.$(OBJECT_EXTENSION):
 	@echo "  C: $(@D)/$(<F)"
 	@$(INSTALL) -d $(BUILD_DIR)/$(@D)
@@ -109,7 +113,7 @@ $(BUILD_DIR):
 
 $(STATIC_LIB): $(BUILD_DIR) $(OBJECTS)
 	@echo "  L: $(@F)"
-	@cd $(BUILD_DIR) && ar rc $(@F) $(OBJECTS) && $(RANLIB) $(@F)
+	@cd $(BUILD_DIR) && $(AR) rc $(@F) $(OBJECTS) && $(RANLIB) $(@F)
 
 #-----------------------------------------------------------------------------
 # Shared Library

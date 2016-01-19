@@ -3,7 +3,7 @@
  *  XVID MPEG-4 VIDEO CODEC
  *  - VFW codec header  -
  *
- *  Copyright(C) 2002-2003 Anonymous <xvid-devel@xvid.org>
+ *  Copyright(C) Peter Ross <pross@xvid.org>
  *
  *  This program is free software ; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -19,7 +19,7 @@
  *  along with this program ; if not, write to the Free Software
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  *
- * $Id: codec.h,v 1.5.2.1 2007/06/27 18:57:42 Isibaar Exp $
+ * $Id: codec.h 1985 2011-05-18 09:02:35Z Isibaar $
  *
  ****************************************************************************/
 #ifndef _CODEC_H_
@@ -35,6 +35,12 @@
 #define FOURCC_XVID	mmioFOURCC('X','V','I','D')
 #define FOURCC_DIVX	mmioFOURCC('D','I','V','X')
 #define FOURCC_DX50 mmioFOURCC('D','X','5','0')
+#define FOURCC_MP4V	mmioFOURCC('M','P','4','V')
+#define FOURCC_xvid	mmioFOURCC('x','v','i','d')
+#define FOURCC_divx	mmioFOURCC('d','i','v','x')
+#define FOURCC_dx50	mmioFOURCC('d','x','5','0')
+#define FOURCC_mp4v	mmioFOURCC('m','p','4','v')
+
 /* yuyu		4:2:2 16bit, y-u-y-v, packed*/
 #define FOURCC_YUYV	mmioFOURCC('Y','U','Y','V')
 #define FOURCC_YUY2	mmioFOURCC('Y','U','Y','2')

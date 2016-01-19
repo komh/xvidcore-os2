@@ -3,7 +3,7 @@
  *  XVID MPEG-4 VIDEO CODEC
  *  - VFW configuration header  -
  *
- *  Copyright(C) 2002-2003 Anonymous <xvid-devel@xvid.org>
+ *  Copyright(C) Peter Ross <pross@xvid.org>
  *
  *  This program is free software ; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -19,9 +19,10 @@
  *  along with this program ; if not, write to the Free Software
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  *
- * $Id: config.h,v 1.9.2.1 2006/07/10 17:26:13 Isibaar Exp $
+ * $Id: config.h 1985 2011-05-18 09:02:35Z Isibaar $
  *
  ****************************************************************************/
+
 #ifndef _CONFIG_H_
 #define _CONFIG_H_
 
@@ -42,7 +43,7 @@ extern HINSTANCE g_hInst;
 
 /* min/max bitrate when not specified by profile */
 #define DEFAULT_MIN_KBPS	16
-#define DEFAULT_MAX_KBPS	10000
+#define DEFAULT_MAX_KBPS	20480
 #define DEFAULT_QUANT		400
 
 /* registry stuff */
@@ -53,19 +54,19 @@ extern HINSTANCE g_hInst;
 
 #define XVID_BUILD		__TIME__ ", " __DATE__
 #define XVID_WEBSITE	"http://www.xvid.org/"
-#define XVID_SPECIAL_BUILD	"(Vanilla CVS Build)"
+#define XVID_SPECIAL_BUILD	"Vanilla CVS Build"
 
 /* constants */
-#define CONFIG_2PASS_FILE "\\video.pass"
+#define CONFIG_2PASS_FILE ".\\video.pass"
 
 /* codec modes */
-#define RC_MODE_1PASS		  0
-#define RC_MODE_2PASS1		 1
-#define RC_MODE_2PASS2		 2
-#define RC_MODE_NULL		   3
+#define RC_MODE_1PASS			0
+#define RC_MODE_2PASS1			1
+#define RC_MODE_2PASS2			2
+#define RC_MODE_NULL			3
 
-#define RC_ZONE_WEIGHT		 0
-#define RC_ZONE_QUANT		  1
+#define RC_ZONE_WEIGHT			0
+#define RC_ZONE_QUANT			1
 
 /* vhq modes */
 #define VHQ_OFF					0
@@ -102,10 +103,11 @@ typedef struct
 #define QUALITY_GENERAL_STRING  "General purpose"
 #define QUALITY_USER_STRING   	"(User defined)"
 typedef struct {
-  char * name;
-  /* motion */
-  int motion_search;
+	char * name;
+	/* motion */
+	int motion_search;
 	int vhq_mode;
+	int vhq_metric;
 	int vhq_bframe;
 	int chromame;
 	int turbo;
@@ -209,6 +211,8 @@ typedef struct
 
 	DWORD cpu;
 
+	int num_slices;
+
 	/* internal */
 	int ci_valid;
 	VFWEXT_CONFIGURE_INFO_T ci;
@@ -237,16 +241,17 @@ typedef struct REG_STR
 } REG_STR;
 
 
-#define PROFILE_ADAPTQUANT  0x00000001
-#define PROFILE_BVOP		0x00000002
-#define PROFILE_MPEGQUANT	0x00000004
-#define PROFILE_INTERLACE	0x00000008
-#define PROFILE_QPEL		0x00000010
-#define PROFILE_GMC			0x00000020
-#define PROFILE_4MV		    0x00000040
-#define PROFILE_PACKED		0x00000080
-#define PROFILE_EXTRA       0x00000100
-
+#define PROFILE_ADAPTQUANT   0x00000001
+#define PROFILE_BVOP		 0x00000002
+#define PROFILE_MPEGQUANT	 0x00000004
+#define PROFILE_INTERLACE	 0x00000008
+#define PROFILE_QPEL		 0x00000010
+#define PROFILE_GMC			 0x00000020
+#define PROFILE_4MV		     0x00000040
+#define PROFILE_PACKED       0x00000080
+#define PROFILE_EXTRA        0x00000100
+#define PROFILE_XVID         0x00000200
+#define PROFILE_RESYNCMARKER 0x00000400
 
 static const int PARS[][2] = {
 	{1, 1},
@@ -263,6 +268,7 @@ static const int PARS[][2] = {
 typedef struct
 {
 	char * name;
+	char * short_name;
 	int id;		 /* mpeg-4 profile id; iso/iec 14496-2:2001 table G-1 */
 	int width;
 	int height;
@@ -292,7 +298,7 @@ void config_reg_set(CONFIG * config);
 void sort_zones(zone_t * zones, int zone_num, int * sel);
 
 
-BOOL CALLBACK main_proc(HWND, UINT, WPARAM, LPARAM);
-BOOL CALLBACK about_proc(HWND, UINT, WPARAM, LPARAM);
+INT_PTR CALLBACK main_proc(HWND, UINT, WPARAM, LPARAM);
+INT_PTR CALLBACK about_proc(HWND, UINT, WPARAM, LPARAM);
 
 #endif /* _CONFIG_H_ */

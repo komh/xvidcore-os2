@@ -3,6 +3,8 @@
  *	XVID VFW FRONTEND
  *	config
  *
+ *	Copyright(C) Peter Ross <pross@xvid.org>
+ *
  *	This program is free software; you can redistribute it and/or modify
  *	it under the terms of the GNU General Public License as published by
  *	the Free Software Foundation; either version 2 of the License, or
@@ -17,48 +19,14 @@
  *	along with this program; if not, write to the Free Software
  *	Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  *
- *************************************************************************/
-
-/**************************************************************************
- *
- *	History:
- *
- *	15.06.2002	added bframes options
- *	21.04.2002	fixed custom matrix support, tried to get dll size down
- *	17.04.2002	re-enabled lumi masking in 1st pass
- *	15.04.2002	updated cbr support
- *	07.04.2002	min keyframe interval checkbox
- *				2-pass max bitrate and overflow customization
- *	04.04.2002	interlacing support
- *				hinted ME support
- *	24.03.2002	daniel smith <danielsmith@astroboymail.com>
- *				added Foxer's new CBR engine
- *				- cbr_buffer is being used as reaction delay (quick hack)
- *	23.03.2002	daniel smith <danielsmith@astroboymail.com>
- *				added load defaults button
- *				merged foxer's alternative 2-pass code (2-pass alt tab)
- *				added proper tooltips
- *				moved registry data into reg_ints/reg_strs arrays
- *				added DEBUGERR output on errors instead of returning
- *	16.03.2002	daniel smith <danielsmith@astroboymail.com>
- *				rewrote/restructured most of file
- *				added tooltips (kind of - dirty message hook method)
- *				split tabs into a main dialog / advanced prop sheet
- *				advanced controls are now enabled/disabled by mode
- *				added modulated quantization, DX50 fourcc
- *	11.03.2002  Min Chen <chenm001@163.com>
- *			  now get Core Version use xvid_init()
- *	05.03.2002  Min Chen <chenm001@163.com>
- *				Add Core version display to about box
- *	01.12.2001	inital version; (c)2001 peter ross <pross@xvid.org>
+ * $Id: config.c 1985 2011-05-18 09:02:35Z Isibaar $
  *
  *************************************************************************/
-
 
 #include <windows.h>
 #include <commctrl.h>
 #include <stdio.h>  /* sprintf */
-#include <xvid.h>	/* XviD API */
+#include <xvid.h>	/* Xvid API */
 
 #include "debug.h"
 #include "config.h"
@@ -115,52 +83,57 @@ BOOL CALLBACK enum_tooltips(HWND hWnd, LPARAM lParam)
 const profile_t profiles[] =
 {
 /*  name                p@l    w    h    fps  obj Tvmv vmv    vcv    ac%   vbv        pkt     bps    vbv_peak dbf flags */
-  { "Simple @ L0",      0x08,  176, 144, 15,  1,  198,   99,   1485, 100,  10*16368,  2048,   64000,        0, -1, PROFILE_S },
+#ifndef EXTRA_PROFILES
+  { "Xvid Mobile",  "Xvid Mobile",  0x00,  352, 240, 30,  1,  990,  330,   9900, 100,  128*8192,    -1, 1334850,  8000000,  5, PROFILE_4MV|PROFILE_ADAPTQUANT|PROFILE_BVOP|PROFILE_PACKED|PROFILE_MPEGQUANT|PROFILE_QPEL|PROFILE_XVID },
+  { "Xvid Home",    "Xvid Home",    0x00,  720, 576, 25,  1, 4860, 1620,  40500, 100,  384*8192,    -1, 4854000,  8000000,  5, PROFILE_4MV|PROFILE_ADAPTQUANT|PROFILE_BVOP|PROFILE_PACKED|PROFILE_MPEGQUANT|PROFILE_QPEL|PROFILE_INTERLACE|PROFILE_XVID },
+  { "Xvid HD 720",  "Xvid HD 720",  0x00, 1280, 720, 30,  1,10800, 3600, 108000, 100,  768*8192,    -1, 9708400, 16000000,  5, PROFILE_4MV|PROFILE_ADAPTQUANT|PROFILE_BVOP|PROFILE_PACKED|PROFILE_MPEGQUANT|PROFILE_QPEL|PROFILE_INTERLACE|PROFILE_XVID },
+  { "Xvid HD 1080",	"Xvid HD 1080", 0x00, 1920,1080, 30,  1,24480, 8160, 244800, 100, 2047*8192,    -1,20480000, 36000000,  5, PROFILE_4MV|PROFILE_ADAPTQUANT|PROFILE_BVOP|PROFILE_PACKED|PROFILE_MPEGQUANT|PROFILE_QPEL|PROFILE_INTERLACE|PROFILE_XVID },
+#else
+  { "Handheld",	         "Handheld",		  0x00,  176, 144, 15,  1,  198,   99,   1485, 100,   32*8192,    -1,  537600,   800000,  0, PROFILE_ADAPTQUANT|PROFILE_EXTRA },
+  { "Portable NTSC",     "Portable NTSC",	  0x00,  352, 240, 30,  1,  990,  330,  36000, 100,  384*8192,    -1, 4854000,  8000000,  1, PROFILE_4MV|PROFILE_ADAPTQUANT|PROFILE_BVOP|PROFILE_PACKED|PROFILE_EXTRA },
+  { "Portable PAL",	     "Portable PAL",	  0x00,  352, 288, 25,  1, 1188,  396,  36000, 100,  384*8192,    -1, 4854000,  8000000,  1, PROFILE_4MV|PROFILE_ADAPTQUANT|PROFILE_BVOP|PROFILE_PACKED|PROFILE_EXTRA },
+  { "Home Theatre NTSC", "Home Theatre NTSC", 0x00,  720, 480, 30,  1, 4050, 1350,  40500, 100,  384*8192,    -1, 4854000,  8000000,  1, PROFILE_4MV|PROFILE_ADAPTQUANT|PROFILE_BVOP|PROFILE_PACKED|PROFILE_INTERLACE|PROFILE_EXTRA },
+  { "Home Theatre PAL",  "Home Theatre PAL",  0x00,  720, 576, 25,  1, 4860, 1620,  40500, 100,  384*8192,    -1, 4854000,  8000000,  1, PROFILE_4MV|PROFILE_ADAPTQUANT|PROFILE_BVOP|PROFILE_PACKED|PROFILE_INTERLACE|PROFILE_EXTRA },
+  { "HDTV",	             "HDTV",			  0x00, 1280, 720, 30,  1,10800, 3600, 108000, 100,  768*8192,    -1, 9708400, 16000000,  2, PROFILE_4MV|PROFILE_ADAPTQUANT|PROFILE_BVOP|PROFILE_PACKED|PROFILE_INTERLACE|PROFILE_EXTRA },
+#endif
+
+  { "MPEG4 Simple @ L0", "MPEG4 SP @ L0",     0x08,  176, 144, 15,  1,  198,   99,   1485, 100,  10*16368,  2048,   64000,        0, -1, PROFILE_S },
   /* simple@l0: max f_code=1, intra_dc_vlc_threshold=0 */
   /* if ac preidition is used, adaptive quantization must not be used */
   /* <=qcif must be used */
-  { "Simple @ L1",      0x01,  176, 144, 15,  4,  198,   99,   1485, 100,  10*16368,  2048,   64000,        0, -1, PROFILE_S|PROFILE_ADAPTQUANT },
-  { "Simple @ L2",      0x02,  352, 288, 15,  4,  792,  396,   5940, 100,  40*16368,  4096,  128000,        0, -1, PROFILE_S|PROFILE_ADAPTQUANT },
-  { "Simple @ L3",      0x03,  352, 288, 15,  4,  792,  396,  11880, 100,  40*16368,  8192,  384000,        0, -1, PROFILE_S|PROFILE_ADAPTQUANT },
+  { "MPEG4 Simple @ L1", "MPEG4 SP @ L1",     0x01,  176, 144, 15,  4,  198,   99,   1485, 100,  10*16368,  2048,   64000,        0, -1, PROFILE_S|PROFILE_ADAPTQUANT },
+  { "MPEG4 Simple @ L2", "MPEG4 SP @ L2",     0x02,  352, 288, 15,  4,  792,  396,   5940, 100,  40*16368,  4096,  128000,        0, -1, PROFILE_S|PROFILE_ADAPTQUANT },
+  { "MPEG4 Simple @ L3", "MPEG4 SP @ L3",     0x03,  352, 288, 30,  4,  792,  396,  11880, 100,  40*16368,  8192,  384000,        0, -1, PROFILE_S|PROFILE_ADAPTQUANT },
+  /* From ISO/IEC 14496-2:2004/FPDAM 2: New Levels for Simple Profile */
+  { "MPEG4 Simple @ L4a","MPEG4 SP @ L4a",    0x04,  640, 480, 30,  4, 2400, 1200,  36000, 100,  80*16368, 16384, 4000000,        0, -1, PROFILE_S|PROFILE_ADAPTQUANT },
+  { "MPEG4 Simple @ L5", "MPEG4 SP @ L5",     0x05,  720, 576, 30,  4, 3240, 1620,  40500, 100, 112*16368, 16384, 8000000,        0, -1, PROFILE_S|PROFILE_ADAPTQUANT },
+  /* From ISO/IEC 14496-2:2004/FPDAM 4: Simple profile level 6 */
+  { "MPEG4 Simple @ L6", "MPEG4 SP @ L6",     0x06, 1280, 720, 30,  4, 7200, 3600, 108000, 100, 248*16368, 16384,12000000,        0, -1, PROFILE_S|PROFILE_ADAPTQUANT },
 
 #if 0 /* since rrv encoding is no longer support, these profiles have little use */
-  { "ARTS @ L1",        0x91,  176, 144, 15,  4,  198,   99,   1485, 100,  10*16368,  8192,   64000,        0, -1, PROFILE_ARTS },
-  { "ARTS @ L2",        0x92,  352, 288, 15,  4,  792,  396,   5940, 100,  40*16368, 16384,  128000,        0, -1, PROFILE_ARTS },
-  { "ARTS @ L3",        0x93,  352, 288, 30,  4,  792,  396,  11880, 100,  40*16368, 16384,  384000,        0, -1, PROFILE_ARTS },
-  { "ARTS @ L4",        0x94,  352, 288, 30, 16,  792,  396,  11880, 100,  80*16368, 16384, 2000000,        0, -1, PROFILE_ARTS },
+  { "MPEG4 ARTS @ L1", "MPEG4 ARTS @ L1",       0x91,  176, 144, 15,  4,  198,   99,   1485, 100,  10*16368,  8192,   64000,        0, -1, PROFILE_ARTS },
+  { "MPEG4 ARTS @ L2", "MPEG4 ARTS @ L2",       0x92,  352, 288, 15,  4,  792,  396,   5940, 100,  40*16368, 16384,  128000,        0, -1, PROFILE_ARTS },
+  { "MPEG4 ARTS @ L3", "MPEG4 ARTS @ L3",       0x93,  352, 288, 30,  4,  792,  396,  11880, 100,  40*16368, 16384,  384000,        0, -1, PROFILE_ARTS },
+  { "MPEG4 ARTS @ L4", "MPEG4 ARTS @ L4",       0x94,  352, 288, 30, 16,  792,  396,  11880, 100,  80*16368, 16384, 2000000,        0, -1, PROFILE_ARTS },
 #endif
 
-  { "Advanced Simple @ L0",          0xf0,  176, 144, 30,  1,  297,   99,   2970, 100,  10*16368,  2048,  128000,        0, -1, PROFILE_AS },
-  { "Advanced Simple @ L1",          0xf1,  176, 144, 30,  4,  297,   99,   2970, 100,  10*16368,  2048,  128000,        0, -1, PROFILE_AS },
-  { "Advanced Simple @ L2",          0xf2,  352, 288, 15,  4, 1188,  396,   5940, 100,  40*16368,  4096,  384000,        0, -1, PROFILE_AS },
-  { "Advanced Simple @ L3",          0xf3,  352, 288, 30,  4, 1188,  396,  11880, 100,  40*16368,  4096,  768000,        0, -1, PROFILE_AS },
+  { "MPEG4 Advanced Simple @ L0", "MPEG4 ASP @ L0",         0xf0,  176, 144, 30,  1,  297,   99,   2970, 100,  10*16368,  2048,  128000,        0, -1, PROFILE_AS },
+  { "MPEG4 Advanced Simple @ L1", "MPEG4 ASP @ L1",         0xf1,  176, 144, 30,  4,  297,   99,   2970, 100,  10*16368,  2048,  128000,        0, -1, PROFILE_AS },
+  { "MPEG4 Advanced Simple @ L2", "MPEG4 ASP @ L2",         0xf2,  352, 288, 15,  4, 1188,  396,   5940, 100,  40*16368,  4096,  384000,        0, -1, PROFILE_AS },
+  { "MPEG4 Advanced Simple @ L3", "MPEG4 ASP @ L3",         0xf3,  352, 288, 30,  4, 1188,  396,  11880, 100,  40*16368,  4096,  768000,        0, -1, PROFILE_AS },
  /*  ISMA Profile 1, (ASP) @ L3b (CIF, 1.5 Mb/s) CIF(352x288), 30fps, 1.5Mbps max ??? */
-  { "Advanced Simple @ L4",          0xf4,  352, 576, 30,  4, 2376,  792,  23760,  50,  80*16368,  8192, 3000000,        0, -1, PROFILE_AS },
-  { "Advanced Simple @ L5",          0xf5,  720, 576, 30,  4, 4860, 1620,  48600,  25, 112*16368, 16384, 8000000,        0, -1, PROFILE_AS },
+  { "MPEG4 Advanced Simple @ L4", "MPEG4 ASP @ L4",         0xf4,  352, 576, 30,  4, 2376,  792,  23760,  50,  80*16368,  8192, 3000000,        0, -1, PROFILE_AS },
+  { "MPEG4 Advanced Simple @ L5", "MPEG4 ASP @ L5",         0xf5,  720, 576, 30,  4, 4860, 1620,  48600,  25, 112*16368, 16384, 8000000,        0, -1, PROFILE_AS },
 
-#ifndef EXTRA_PROFILES
-  { "Mobile",            0x00,  352, 240, 30,  1,  990,  330,  36000, 100,  128*8192,    -1, 1334850,  8000000,  5, PROFILE_4MV|PROFILE_ADAPTQUANT|PROFILE_BVOP|PROFILE_PACKED|PROFILE_MPEGQUANT|PROFILE_QPEL },
-  { "Portable",          0x00,  640, 480, 30,  1, 3600, 1200,  36000, 100,  384*8192,    -1, 4854000,  8000000,  5, PROFILE_4MV|PROFILE_ADAPTQUANT|PROFILE_BVOP|PROFILE_PACKED|PROFILE_MPEGQUANT|PROFILE_QPEL|PROFILE_INTERLACE },
-  { "Home",              0x00,  720, 576, 25,  1, 4860, 1620,  40500, 100,  384*8192,    -1, 4854000,  8000000,  5, PROFILE_4MV|PROFILE_ADAPTQUANT|PROFILE_BVOP|PROFILE_PACKED|PROFILE_MPEGQUANT|PROFILE_QPEL|PROFILE_INTERLACE },
-  { "Highdef",           0x00, 1280, 720, 30,  1,10800, 3600, 108000, 100,  768*8192,    -1, 9708400, 16000000,  5, PROFILE_4MV|PROFILE_ADAPTQUANT|PROFILE_BVOP|PROFILE_PACKED|PROFILE_MPEGQUANT|PROFILE_QPEL|PROFILE_INTERLACE },
-#else
-  { "Handheld",			 0x00,  176, 144, 15,  1,  198,   99,   1485, 100,   32*8192,    -1,  537600,   800000,  0, PROFILE_ADAPTQUANT|PROFILE_EXTRA },
-  { "Portable NTSC",	 0x00,  352, 240, 30,  1,  990,  330,  36000, 100,  384*8192,    -1, 4854000,  8000000,  1, PROFILE_4MV|PROFILE_ADAPTQUANT|PROFILE_BVOP|PROFILE_PACKED|PROFILE_EXTRA },
-  { "Portable PAL",		 0x00,  352, 288, 25,  1, 1188,  396,  36000, 100,  384*8192,    -1, 4854000,  8000000,  1, PROFILE_4MV|PROFILE_ADAPTQUANT|PROFILE_BVOP|PROFILE_PACKED|PROFILE_EXTRA },
-  { "Home Theatre NTSC", 0x00,  720, 480, 30,  1, 4050, 1350,  40500, 100,  384*8192,    -1, 4854000,  8000000,  1, PROFILE_4MV|PROFILE_ADAPTQUANT|PROFILE_BVOP|PROFILE_PACKED|PROFILE_INTERLACE|PROFILE_EXTRA },
-  { "Home Theatre PAL",  0x00,  720, 576, 25,  1, 4860, 1620,  40500, 100,  384*8192,    -1, 4854000,  8000000,  1, PROFILE_4MV|PROFILE_ADAPTQUANT|PROFILE_BVOP|PROFILE_PACKED|PROFILE_INTERLACE|PROFILE_EXTRA },
-  { "HDTV",				 0x00, 1280, 720, 30,  1,10800, 3600, 108000, 100,  768*8192,    -1, 9708400, 16000000,  2, PROFILE_4MV|PROFILE_ADAPTQUANT|PROFILE_BVOP|PROFILE_PACKED|PROFILE_INTERLACE|PROFILE_EXTRA },
-#endif
-
-  { "(unrestricted)",   0x00,    0,   0,  0,  0,    0,    0,      0, 100,   0*16368,    -1,       0,        0, -1, 0xffffffff & ~(PROFILE_EXTRA | PROFILE_PACKED)},
+  { "(unrestricted)", "(unrestricted)",  0x00,    0,   0,  0,  0,    0,    0,      0, 100,   0*16368,    -1,       0,        0, -1, 0xffffffff & ~(PROFILE_EXTRA | PROFILE_PACKED | PROFILE_XVID)},
 };
 
 
 const quality_t quality_table[] = 
 {
-    /* name                 |  m  vhq  bf cme  tbo  kfi  fdr  | iquant pquant bquant trellis */
-  { "Real-time",               1,  0,  0,  0,  0,  300,  0,     1, 31, 1, 31, 1, 31,   0   },
-  { QUALITY_GENERAL_STRING,    6,  1,  0,  1,  0,  300,  0,     1, 31, 1, 31, 1, 31,   1   },
+    /* name                 |  m  vhq mtc bf cme  tbo  kfi  fdr  | iquant pquant bquant trellis */
+  { "Real-time",               1,  0,  0,  0,  0,  0,  300,  0,     1, 31, 1, 31, 1, 31,   0   },
+  { QUALITY_GENERAL_STRING,    6,  1,  0,  0,  1,  0,  300,  0,     1, 31, 1, 31, 1, 31,   1   },
 };
 
 const int quality_table_num = sizeof(quality_table)/sizeof(quality_t);
@@ -228,6 +201,7 @@ static const REG_INT reg_ints[] = {
 	{"bquant_ratio",			&reg.bquant_ratio,				150},   /* 100-base float */
 	{"bquant_offset",			&reg.bquant_offset,				100},   /* 100-base float */
 	{"packed",					&reg.packed,					1},
+	{"num_slices", 				&reg.num_slices,				1},
 
 	/* aspect ratio */
 	{"ar_mode",					&reg.ar_mode,					0},
@@ -275,6 +249,7 @@ static const REG_INT reg_ints[] = {
 	/* motion */
 	{"motion_search",			&reg.quality_user.motion_search,				6},
 	{"vhq_mode",				&reg.quality_user.vhq_mode,					1},
+	{"vhq_metric",				&reg.quality_user.vhq_metric,				0},
 	{"vhq_bframe",				&reg.quality_user.vhq_bframe,				0},
 	{"chromame",				&reg.quality_user.chromame,					1},
 	{"turbo",					&reg.quality_user.turbo,						0},
@@ -295,7 +270,11 @@ static const REG_INT reg_ints[] = {
 	{"debug",					&reg.debug,						0x0},
 	{"vop_debug",				&reg.vop_debug,					0},
 	{"display_status",			&reg.display_status,			1},
-	
+	{"cpu_flags", 				&reg.cpu,						0},
+
+	/* smp */
+	{"num_threads",				&reg.num_threads,				0},
+
 	/* decoder, shared with dshow */
 	{"Brightness",				&pp_brightness,					0},
 	{"Deblock_Y",				&pp_dy,							0},
@@ -307,8 +286,8 @@ static const REG_INT reg_ints[] = {
 };
 
 static const REG_STR reg_strs[] = {
-	{"profile",					reg.profile_name,				"(unrestricted)"},
-  {"quality",         reg.quality_name,       QUALITY_GENERAL_STRING},
+	{"profile",					reg.profile_name,				"Xvid Home"},
+	{"quality",         reg.quality_name,       QUALITY_GENERAL_STRING},
 	{"stats",					reg.stats,						CONFIG_2PASS_FILE},
 };
 
@@ -375,9 +354,6 @@ void config_reg_get(CONFIG * config)
 		FreeLibrary(m_hdll);
 	}
 
-	reg.cpu = info.cpu_flags;
-	reg.num_threads = info.num_threads;
-
 	RegOpenKeyEx(XVID_REG_KEY, XVID_REG_PARENT "\\" XVID_REG_CHILD, 0, KEY_READ, &hKey);
 
 	/* read integer values */
@@ -399,7 +375,10 @@ void config_reg_get(CONFIG * config)
   /* find profile table index */
 	reg.profile = 0;
 	for (i=0; i<sizeof(profiles)/sizeof(profile_t); i++) {
-		if (lstrcmpi(profiles[i].name, reg.profile_name) == 0) {
+		char perm1[255] = {"Xvid "}, perm2[255] = {"MPEG4 "};
+		if (lstrcmpi(profiles[i].name, reg.profile_name) == 0 || 
+			lstrcmpi(profiles[i].name, lstrcat(perm1, reg.profile_name)) == 0 ||
+			lstrcmpi(profiles[i].name, lstrcat(perm2, reg.profile_name)) == 0) { /* legacy names */
 			reg.profile = i;
 		}
 	}
@@ -437,6 +416,11 @@ void config_reg_get(CONFIG * config)
 		}
 
 		memcpy(&config->zones[i], &stmp, sizeof(zone_t));
+	}
+
+	if (!(config->cpu&XVID_CPU_FORCE)) {
+		config->cpu = info.cpu_flags;
+		config->num_threads = info.num_threads; /* autodetect */
 	}
 
 	RegCloseKey(hKey);
@@ -501,7 +485,7 @@ void config_reg_set(CONFIG * config)
 }
 
 
-/* clear XviD registry key, load defaults */
+/* clear Xvid registry key, load defaults */
 
 static void config_reg_default(CONFIG * config)
 {
@@ -544,7 +528,7 @@ static int config_get_uint(HWND hDlg, UINT item, int config)
 #define UINT_BUF_SZ	20
 static int config_get_cbuint(HWND hDlg, UINT item, int def)
 {
-	int sel = SendMessage(GetDlgItem(hDlg, item), CB_GETCURSEL, 0, 0);
+	LRESULT sel = SendMessage(GetDlgItem(hDlg, item), CB_GETCURSEL, 0, 0);
 	char buf[UINT_BUF_SZ];
 
 	if (sel<0) {
@@ -701,14 +685,14 @@ static void quant_loadsave(HWND hDlg, CONFIG * config, int save)
 
 /* quantization matrix dialog proc */
 
-static BOOL CALLBACK quantmatrix_proc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
+static INT_PTR CALLBACK quantmatrix_proc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-	CONFIG* config = (CONFIG*)GetWindowLong(hDlg, GWL_USERDATA);
+	CONFIG* config = (CONFIG*)GetWindowLongPtr(hDlg, GWLP_USERDATA);
 
 	switch (uMsg)
 	{
 	case WM_INITDIALOG :
-		SetWindowLong(hDlg, GWL_USERDATA, lParam);
+		SetWindowLongPtr(hDlg, GWLP_USERDATA, lParam);
 		config = (CONFIG*)lParam;
 		quant_upload(hDlg, config);
 
@@ -770,6 +754,10 @@ static void adv_init(HWND hDlg, int idd, CONFIG * config)
 		SendDlgItemMessage(hDlg, IDC_QUANTTYPE, CB_ADDSTRING, 0, (LPARAM)"H.263");
 		SendDlgItemMessage(hDlg, IDC_QUANTTYPE, CB_ADDSTRING, 0, (LPARAM)"MPEG");
 		SendDlgItemMessage(hDlg, IDC_QUANTTYPE, CB_ADDSTRING, 0, (LPARAM)"MPEG-Custom");
+
+		SendDlgItemMessage(hDlg, IDC_LUMMASK, CB_ADDSTRING, 0, (LPARAM)"Off");
+		SendDlgItemMessage(hDlg, IDC_LUMMASK, CB_ADDSTRING, 0, (LPARAM)"Luminance-Masking");
+		SendDlgItemMessage(hDlg, IDC_LUMMASK, CB_ADDSTRING, 0, (LPARAM)"Variance-Masking");
 		break;
 
 	case IDD_AR:
@@ -837,13 +825,12 @@ static void adv_init(HWND hDlg, int idd, CONFIG * config)
 		SendDlgItemMessage(hDlg, IDC_VHQ, CB_ADDSTRING, 0, (LPARAM)"2 - Limited Search");
 		SendDlgItemMessage(hDlg, IDC_VHQ, CB_ADDSTRING, 0, (LPARAM)"3 - Medium Search");
 		SendDlgItemMessage(hDlg, IDC_VHQ, CB_ADDSTRING, 0, (LPARAM)"4 - Wide Search");
+
+		SendDlgItemMessage(hDlg, IDC_VHQ_METRIC, CB_ADDSTRING, 0, (LPARAM)"0 - PSNR");
+		SendDlgItemMessage(hDlg, IDC_VHQ_METRIC, CB_ADDSTRING, 0, (LPARAM)"1 - PSNR-HVS-M");
 		break;
 
 	case IDD_ENC :
-		/* force threads disabled */
-		EnableWindow(GetDlgItem(hDlg, IDC_NUMTHREADS_STATIC), FALSE);
-		EnableWindow(GetDlgItem(hDlg, IDC_NUMTHREADS), FALSE);
-
 		SendDlgItemMessage(hDlg, IDC_FOURCC, CB_ADDSTRING, 0, (LPARAM)"XVID");
 		SendDlgItemMessage(hDlg, IDC_FOURCC, CB_ADDSTRING, 0, (LPARAM)"DIVX");
 		SendDlgItemMessage(hDlg, IDC_FOURCC, CB_ADDSTRING, 0, (LPARAM)"DX50");
@@ -866,6 +853,7 @@ static void adv_mode(HWND hDlg, int idd, CONFIG * config)
 	int cpu_force;
 	int custom_quant, bvops;
 	int ar_mode, ar_par;
+	int qpel_checked, mot_srch_prec, vhq_enabled, bvhq_enabled;
 
 	switch(idd) {
 	case IDD_PROFILE :
@@ -882,6 +870,7 @@ static void adv_mode(HWND hDlg, int idd, CONFIG * config)
 		EnableDlgWindow(hDlg, IDC_TFF, IsDlgChecked(hDlg, IDC_INTERLACING));
 		EnableDlgWindow(hDlg, IDC_QPEL, profiles[profile].flags&PROFILE_QPEL);
 		EnableDlgWindow(hDlg, IDC_GMC, profiles[profile].flags&PROFILE_GMC);
+		EnableDlgWindow(hDlg, IDC_SLICES, profiles[profile].flags&PROFILE_RESYNCMARKER);
 
 		bvops = (profiles[profile].flags&PROFILE_BVOP) && IsDlgChecked(hDlg, IDC_BVOP);
 		EnableDlgWindow(hDlg, IDC_MAXBFRAMES,	   bvops);
@@ -891,6 +880,40 @@ static void adv_mode(HWND hDlg, int idd, CONFIG * config)
 		EnableDlgWindow(hDlg, IDC_BQUANTRATIO_S,	bvops);
 		EnableDlgWindow(hDlg, IDC_BQUANTOFFSET_S,   bvops);
 		EnableDlgWindow(hDlg, IDC_PACKED,		   bvops && !(profiles[profile].flags & PROFILE_PACKED));
+
+		switch(profile) {
+		case 0:
+			{
+				HICON profile_icon = LoadImage(g_hInst, MAKEINTRESOURCE(IDI_MOBILE), IMAGE_ICON, 0, 0, 0);
+				SendDlgItemMessage(hDlg, IDC_PROFILE_LOGO, STM_SETIMAGE, IMAGE_ICON, (LPARAM)profile_icon); 
+			}
+			break;
+		case 1:
+			{
+				HICON profile_icon = LoadImage(g_hInst, MAKEINTRESOURCE(IDI_HOME), IMAGE_ICON, 0, 0, 0);
+				SendDlgItemMessage(hDlg, IDC_PROFILE_LOGO, STM_SETIMAGE, IMAGE_ICON, (LPARAM)profile_icon); 
+			}
+			break;
+		case 2:
+			{
+				HICON profile_icon = LoadImage(g_hInst, MAKEINTRESOURCE(IDI_HD720), IMAGE_ICON, 0, 0, 0);
+				SendDlgItemMessage(hDlg, IDC_PROFILE_LOGO, STM_SETIMAGE, IMAGE_ICON, (LPARAM)profile_icon); 
+			}
+			break;
+		case 3:
+			{
+				HICON profile_icon = LoadImage(g_hInst, MAKEINTRESOURCE(IDI_HD1080), IMAGE_ICON, 0, 0, 0);
+				SendDlgItemMessage(hDlg, IDC_PROFILE_LOGO, STM_SETIMAGE, IMAGE_ICON, (LPARAM)profile_icon); 
+			}
+			break;
+		default:
+			SendDlgItemMessage(hDlg, IDC_PROFILE_LOGO, STM_SETIMAGE, IMAGE_ICON, (LPARAM)NULL); 
+			break;
+		}
+		if (profile < 4) 
+			ShowWindow(GetDlgItem(hDlg, IDC_PROFILE_LABEL), SW_HIDE);
+		else
+			ShowWindow(GetDlgItem(hDlg, IDC_PROFILE_LABEL), SW_SHOW);
 		break;
 
 	case IDD_AR:
@@ -958,6 +981,41 @@ static void adv_mode(HWND hDlg, int idd, CONFIG * config)
       EnableDlgWindow(hDlg, IDC_LEVEL_PEAKRATE_S, en_pr);
       EnableDlgWindow(hDlg, IDC_LEVEL_PEAKRATE,   en_pr);
     }
+
+		switch(profile) {
+		case 0:
+			{
+				HICON profile_icon = LoadImage(g_hInst, MAKEINTRESOURCE(IDI_MOBILE), IMAGE_ICON, 0, 0, 0);
+				SendDlgItemMessage(hDlg, IDC_PROFILE_LOGO, STM_SETIMAGE, IMAGE_ICON, (LPARAM)profile_icon); 
+			}
+			break;
+		case 1:
+			{
+				HICON profile_icon = LoadImage(g_hInst, MAKEINTRESOURCE(IDI_HOME), IMAGE_ICON, 0, 0, 0);
+				SendDlgItemMessage(hDlg, IDC_PROFILE_LOGO, STM_SETIMAGE, IMAGE_ICON, (LPARAM)profile_icon); 
+			}
+			break;
+		case 2:
+			{
+				HICON profile_icon = LoadImage(g_hInst, MAKEINTRESOURCE(IDI_HD720), IMAGE_ICON, 0, 0, 0);
+				SendDlgItemMessage(hDlg, IDC_PROFILE_LOGO, STM_SETIMAGE, IMAGE_ICON, (LPARAM)profile_icon); 
+			}
+			break;
+		case 3:
+			{
+				HICON profile_icon = LoadImage(g_hInst, MAKEINTRESOURCE(IDI_HD1080), IMAGE_ICON, 0, 0, 0);
+				SendDlgItemMessage(hDlg, IDC_PROFILE_LOGO, STM_SETIMAGE, IMAGE_ICON, (LPARAM)profile_icon); 
+			}
+			break;
+		default:
+			SendDlgItemMessage(hDlg, IDC_PROFILE_LOGO, STM_SETIMAGE, IMAGE_ICON, (LPARAM)NULL); 
+			break;
+		}
+		if (profile < 4) 
+			ShowWindow(GetDlgItem(hDlg, IDC_PROFILE_LABEL), SW_HIDE);
+		else
+			ShowWindow(GetDlgItem(hDlg, IDC_PROFILE_LABEL), SW_SHOW);
+
 		break;
 
 	case IDD_BITRATE :
@@ -1107,9 +1165,33 @@ static void adv_mode(HWND hDlg, int idd, CONFIG * config)
 		EnableDlgWindow(hDlg, IDC_CPU_MMXEXT,	cpu_force);
 		EnableDlgWindow(hDlg, IDC_CPU_SSE,		cpu_force);
 		EnableDlgWindow(hDlg, IDC_CPU_SSE2,		cpu_force);
-		EnableDlgWindow(hDlg, IDC_CPU_3DNOW,	cpu_force);
+		EnableDlgWindow(hDlg, IDC_CPU_SSE3,		cpu_force);
+		EnableDlgWindow(hDlg, IDC_CPU_SSE4, 	cpu_force);
+        EnableDlgWindow(hDlg, IDC_CPU_3DNOW,	cpu_force);
 		EnableDlgWindow(hDlg, IDC_CPU_3DNOWEXT,	cpu_force);
+		EnableDlgWindow(hDlg, IDC_NUMTHREADS,   cpu_force);
+		EnableDlgWindow(hDlg, IDC_NUMTHREADS_STATIC,   cpu_force);
 		break;
+
+	case IDD_MOTION:
+		{
+			const int userdef = (config->quality==quality_table_num);
+			if (userdef) {
+				bvops = (profiles[config->profile].flags&PROFILE_BVOP) && config->use_bvop;
+				qpel_checked = (profiles[config->profile].flags&PROFILE_QPEL) && config->qpel;
+				mot_srch_prec = SendDlgItemMessage(hDlg, IDC_MOTION, CB_GETCURSEL, 0, 0);
+				vhq_enabled = SendDlgItemMessage(hDlg, IDC_VHQ, CB_GETCURSEL, 0, 0);
+				bvhq_enabled = IsDlgButtonChecked(hDlg, IDC_VHQ_BFRAME);
+				EnableDlgWindow(hDlg, IDC_VHQ, mot_srch_prec);
+				EnableDlgWindow(hDlg, IDC_VHQ_BFRAME, mot_srch_prec && bvops && vhq_enabled);
+				EnableDlgWindow(hDlg, IDC_CHROMAME, mot_srch_prec);
+				EnableDlgWindow(hDlg, IDC_TURBO, mot_srch_prec && (bvops || qpel_checked));
+				EnableDlgWindow(hDlg, IDC_VHQ_METRIC, mot_srch_prec && (vhq_enabled || bvhq_enabled));
+				EnableDlgWindow(hDlg, IDC_FRAMEDROP, mot_srch_prec);
+				EnableDlgWindow(hDlg, IDC_MAXKEY, mot_srch_prec);
+			}
+			break;
+		}
 	}
 }
 
@@ -1123,11 +1205,12 @@ static void adv_upload(HWND hDlg, int idd, CONFIG * config)
 		SendDlgItemMessage(hDlg, IDC_PROFILE_PROFILE, CB_SETCURSEL, config->profile, 0);
 
 		SendDlgItemMessage(hDlg, IDC_QUANTTYPE, CB_SETCURSEL, config->quant_type, 0);
-		CheckDlg(hDlg, IDC_LUMMASK, config->lum_masking);
+		SendDlgItemMessage(hDlg, IDC_LUMMASK, CB_SETCURSEL, config->lum_masking, 0);
   		CheckDlg(hDlg, IDC_INTERLACING, config->interlacing);
 		CheckDlg(hDlg, IDC_TFF, config->tff);
 		CheckDlg(hDlg, IDC_QPEL, config->qpel);
   		CheckDlg(hDlg, IDC_GMC, config->gmc);
+		CheckDlg(hDlg, IDC_SLICES, (config->num_slices != 1));
 		CheckDlg(hDlg, IDC_BVOP, config->use_bvop);
 
 		SetDlgItemInt(hDlg, IDC_MAXBFRAMES, config->max_bframes, FALSE);
@@ -1211,9 +1294,14 @@ static void adv_upload(HWND hDlg, int idd, CONFIG * config)
     {
     const int userdef = (config->quality==quality_table_num);
     const quality_t* quality_preset = userdef ? &config->quality_user : &quality_table[config->quality];
+    int bvops = (profiles[config->profile].flags&PROFILE_BVOP) && config->use_bvop;
+    int qpel_checked = (profiles[config->profile].flags&PROFILE_QPEL) && config->qpel;
+    int bvops_qpel_motion = (bvops || qpel_checked) && quality_preset->motion_search;
+    int vhq_or_bvhq = quality_preset->vhq_mode || quality_preset->vhq_bframe;
 
 		SendDlgItemMessage(hDlg, IDC_MOTION, CB_SETCURSEL, quality_preset->motion_search, 0);
 		SendDlgItemMessage(hDlg, IDC_VHQ, CB_SETCURSEL, quality_preset->vhq_mode, 0);
+		SendDlgItemMessage(hDlg, IDC_VHQ_METRIC, CB_SETCURSEL, quality_preset->vhq_metric, 0);
 		CheckDlg(hDlg, IDC_VHQ_BFRAME, quality_preset->vhq_bframe);
 		CheckDlg(hDlg, IDC_CHROMAME, quality_preset->chromame);
 		CheckDlg(hDlg, IDC_TURBO, quality_preset->turbo);
@@ -1221,12 +1309,14 @@ static void adv_upload(HWND hDlg, int idd, CONFIG * config)
 		SetDlgItemInt(hDlg, IDC_MAXKEY, quality_preset->max_key_interval, FALSE);
 
     EnableDlgWindow(hDlg, IDC_MOTION,     userdef);
-    EnableDlgWindow(hDlg, IDC_VHQ,        userdef);
-    EnableDlgWindow(hDlg, IDC_VHQ_BFRAME, userdef);
-    EnableDlgWindow(hDlg, IDC_CHROMAME,   userdef);
-    EnableDlgWindow(hDlg, IDC_TURBO,      userdef);
-    EnableDlgWindow(hDlg, IDC_FRAMEDROP,  userdef);
-    EnableDlgWindow(hDlg, IDC_MAXKEY,     userdef);
+    EnableDlgWindow(hDlg, IDC_VHQ,        userdef && quality_preset->motion_search);
+    EnableDlgWindow(hDlg, IDC_VHQ_METRIC, userdef && vhq_or_bvhq);
+    EnableDlgWindow(hDlg, IDC_VHQ_BFRAME, userdef && bvops);
+    EnableDlgWindow(hDlg, IDC_CHROMAME,   userdef && quality_preset->motion_search);
+    EnableDlgWindow(hDlg, IDC_TURBO,      userdef && bvops_qpel_motion);
+    EnableDlgWindow(hDlg, IDC_FRAMEDROP,  userdef && quality_preset->motion_search);
+    EnableDlgWindow(hDlg, IDC_MAXKEY,     userdef && quality_preset->motion_search);
+
 		break;
     }
 
@@ -1258,17 +1348,23 @@ static void adv_upload(HWND hDlg, int idd, CONFIG * config)
 		CheckDlg(hDlg, IDC_CPU_MMXEXT, (config->cpu & XVID_CPU_MMXEXT));
 		CheckDlg(hDlg, IDC_CPU_SSE, (config->cpu & XVID_CPU_SSE));
 		CheckDlg(hDlg, IDC_CPU_SSE2, (config->cpu & XVID_CPU_SSE2));
-		CheckDlg(hDlg, IDC_CPU_3DNOW, (config->cpu & XVID_CPU_3DNOW));
+		CheckDlg(hDlg, IDC_CPU_SSE3, (config->cpu & XVID_CPU_SSE3));
+		CheckDlg(hDlg, IDC_CPU_SSE4, (config->cpu & XVID_CPU_SSE41));
+        CheckDlg(hDlg, IDC_CPU_3DNOW, (config->cpu & XVID_CPU_3DNOW));
 		CheckDlg(hDlg, IDC_CPU_3DNOWEXT, (config->cpu & XVID_CPU_3DNOWEXT));
 
 		CheckRadioButton(hDlg, IDC_CPU_AUTO, IDC_CPU_FORCE,
 			config->cpu & XVID_CPU_FORCE ? IDC_CPU_FORCE : IDC_CPU_AUTO );
 		set_dlgitem_hex(hDlg, IDC_DEBUG, config->debug);
+		SetDlgItemInt(hDlg, IDC_NUMTHREADS, config->num_threads, FALSE);
     break;
 
   case IDD_ENC:
-		SetDlgItemInt(hDlg, IDC_NUMTHREADS, config->num_threads, FALSE);
-		SendDlgItemMessage(hDlg, IDC_FOURCC, CB_SETCURSEL, config->fourcc_used, 0);
+		if(profiles[config->profile].flags & PROFILE_XVID)
+			SendDlgItemMessage(hDlg, IDC_FOURCC, CB_SETCURSEL, 0, 0);
+		else
+			SendDlgItemMessage(hDlg, IDC_FOURCC, CB_SETCURSEL, config->fourcc_used, 0);
+		EnableDlgWindow(hDlg, IDC_FOURCC, (!(profiles[config->profile].flags & PROFILE_XVID)));
 		CheckDlg(hDlg, IDC_VOPDEBUG, config->vop_debug);
 		CheckDlg(hDlg, IDC_DISPLAY_STATUS, config->display_status);
 		break;
@@ -1297,11 +1393,12 @@ static void adv_download(HWND hDlg, int idd, CONFIG * config)
 		config->profile = SendDlgItemMessage(hDlg, IDC_PROFILE_PROFILE, CB_GETCURSEL, 0, 0);
 
 		config->quant_type = SendDlgItemMessage(hDlg, IDC_QUANTTYPE, CB_GETCURSEL, 0, 0);
-		config->lum_masking = IsDlgChecked(hDlg, IDC_LUMMASK);
+		config->lum_masking = SendDlgItemMessage(hDlg, IDC_LUMMASK, CB_GETCURSEL, 0, 0);
 		config->interlacing = IsDlgChecked(hDlg, IDC_INTERLACING);
 		config->tff = IsDlgChecked(hDlg, IDC_TFF);
 		config->qpel = IsDlgChecked(hDlg, IDC_QPEL);
 		config->gmc = IsDlgChecked(hDlg, IDC_GMC);
+		config->num_slices = (IsDlgChecked(hDlg, IDC_SLICES) ? ((config->num_slices < 2) ? 0 : config->num_slices) : 1);
 
 		config->use_bvop = IsDlgChecked(hDlg, IDC_BVOP);
 		config->max_bframes = config_get_uint(hDlg, IDC_MAXBFRAMES, config->max_bframes);
@@ -1419,6 +1516,7 @@ static void adv_download(HWND hDlg, int idd, CONFIG * config)
     if (config->quality==quality_table_num) {
       config->quality_user.motion_search = SendDlgItemMessage(hDlg, IDC_MOTION, CB_GETCURSEL, 0, 0);
 		  config->quality_user.vhq_mode = SendDlgItemMessage(hDlg, IDC_VHQ, CB_GETCURSEL, 0, 0);
+		  config->quality_user.vhq_metric = SendDlgItemMessage(hDlg, IDC_VHQ_METRIC, CB_GETCURSEL, 0, 0);
 		  config->quality_user.vhq_bframe = IsDlgButtonChecked(hDlg, IDC_VHQ_BFRAME);
 		  config->quality_user.chromame = IsDlgChecked(hDlg, IDC_CHROMAME);
 		  config->quality_user.turbo = IsDlgChecked(hDlg, IDC_TURBO);
@@ -1455,15 +1553,18 @@ static void adv_download(HWND hDlg, int idd, CONFIG * config)
 		config->cpu |= IsDlgChecked(hDlg, IDC_CPU_MMXEXT)   ? XVID_CPU_MMXEXT : 0;
 		config->cpu |= IsDlgChecked(hDlg, IDC_CPU_SSE)	  ? XVID_CPU_SSE : 0;
 		config->cpu |= IsDlgChecked(hDlg, IDC_CPU_SSE2)	 ? XVID_CPU_SSE2 : 0;
-		config->cpu |= IsDlgChecked(hDlg, IDC_CPU_3DNOW)	? XVID_CPU_3DNOW : 0;
+		config->cpu |= IsDlgChecked(hDlg, IDC_CPU_SSE3)	  ? XVID_CPU_SSE3 : 0;
+		config->cpu |= IsDlgChecked(hDlg, IDC_CPU_SSE4)     ? XVID_CPU_SSE41 : 0;
+        config->cpu |= IsDlgChecked(hDlg, IDC_CPU_3DNOW)	? XVID_CPU_3DNOW : 0;
 		config->cpu |= IsDlgChecked(hDlg, IDC_CPU_3DNOWEXT) ? XVID_CPU_3DNOWEXT : 0;
 		config->cpu |= IsDlgChecked(hDlg, IDC_CPU_FORCE)	? XVID_CPU_FORCE : 0;
-    config->debug = get_dlgitem_hex(hDlg, IDC_DEBUG, config->debug);
+	    config->debug = get_dlgitem_hex(hDlg, IDC_DEBUG, config->debug);
+		config->num_threads = min(16, config_get_uint(hDlg, IDC_NUMTHREADS, config->num_threads));
     break;
 
   case IDD_ENC :
-		config->num_threads = config_get_uint(hDlg, IDC_NUMTHREADS, config->num_threads);
-		config->fourcc_used = SendDlgItemMessage(hDlg, IDC_FOURCC, CB_GETCURSEL, 0, 0);
+		if(!(profiles[config->profile].flags & PROFILE_XVID))
+		  config->fourcc_used = SendDlgItemMessage(hDlg, IDC_FOURCC, CB_GETCURSEL, 0, 0);
 		config->vop_debug = IsDlgChecked(hDlg, IDC_VOPDEBUG);
 		config->display_status = IsDlgChecked(hDlg, IDC_DISPLAY_STATUS);
 		break;
@@ -1483,17 +1584,17 @@ static void adv_download(HWND hDlg, int idd, CONFIG * config)
 
 /* advanced dialog proc */
 
-static BOOL CALLBACK adv_proc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
+static INT_PTR CALLBACK adv_proc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
 	PROPSHEETINFO *psi;
 
-	psi = (PROPSHEETINFO*)GetWindowLong(hDlg, GWL_USERDATA);
+	psi = (PROPSHEETINFO*)GetWindowLongPtr(hDlg, GWLP_USERDATA);
 
 	switch (uMsg)
 	{
 	case WM_INITDIALOG :
 		psi = (PROPSHEETINFO*) ((LPPROPSHEETPAGE)lParam)->lParam;
-		SetWindowLong(hDlg, GWL_USERDATA, (LPARAM)psi);
+		SetWindowLongPtr(hDlg, GWLP_USERDATA, (LPARAM)psi);
 
 		if (g_hTooltip)
 			EnumChildWindows(hDlg, enum_tooltips, 0);
@@ -1637,6 +1738,8 @@ static BOOL CALLBACK adv_proc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam
 			 LOWORD(wParam) == IDC_LEVEL_PROFILE ||
 			 LOWORD(wParam) == IDC_QUANTTYPE ||
 			 LOWORD(wParam) == IDC_ASPECT_RATIO ||
+ 			 LOWORD(wParam) == IDC_MOTION ||
+			 LOWORD(wParam) == IDC_VHQ ||
 			 LOWORD(wParam) == IDC_BITRATE_CFORMAT ||
 			 LOWORD(wParam) == IDC_BITRATE_AFORMAT ||
 			 LOWORD(wParam) == IDC_BITRATE_FPS)) {
@@ -1681,19 +1784,19 @@ static BOOL CALLBACK adv_proc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam
 			DPRINTF("PSN_SET");
 			adv_upload(hDlg, psi->idd, psi->config);
 			adv_mode(hDlg, psi->idd, psi->config);
-			SetWindowLong(hDlg, DWL_MSGRESULT, FALSE);
+			SetWindowLongPtr(hDlg, DWLP_MSGRESULT, FALSE);
 			break;
 
 		case PSN_KILLACTIVE :
 			DPRINTF("PSN_KILL");
 			adv_download(hDlg, psi->idd, psi->config);
-			SetWindowLong(hDlg, DWL_MSGRESULT, FALSE);
+			SetWindowLongPtr(hDlg, DWLP_MSGRESULT, FALSE);
 			break;
 
 		case PSN_APPLY :
 			DPRINTF("PSN_APPLY");
 			psi->config->save = TRUE;
-			SetWindowLong(hDlg, DWL_MSGRESULT, FALSE);
+			SetWindowLongPtr(hDlg, DWLP_MSGRESULT, FALSE);
 			break;
 		}
 		break;
@@ -1914,19 +2017,19 @@ static const int quality_dlgs[] = { IDD_MOTION, IDD_QUANT };
 static const int other_dlgs[] = { IDD_ENC, IDD_DEC, IDD_COMMON };
 
 
-BOOL CALLBACK main_proc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
+INT_PTR CALLBACK main_proc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-	CONFIG* config = (CONFIG*)GetWindowLong(hDlg, GWL_USERDATA);
+	CONFIG* config = (CONFIG*)GetWindowLongPtr(hDlg, GWLP_USERDATA);
 	unsigned int i;
 
 	switch (uMsg)
 	{
 	case WM_INITDIALOG :
-		SetWindowLong(hDlg, GWL_USERDATA, lParam);
+		SetWindowLongPtr(hDlg, GWLP_USERDATA, lParam);
 		config = (CONFIG*)lParam;
 
 		for (i=0; i<sizeof(profiles)/sizeof(profile_t); i++)
-			SendDlgItemMessage(hDlg, IDC_PROFILE, CB_ADDSTRING, 0, (LPARAM)profiles[i].name);
+			SendDlgItemMessage(hDlg, IDC_PROFILE, CB_ADDSTRING, 0, (LPARAM)profiles[i].short_name);
 
 		SendDlgItemMessage(hDlg, IDC_MODE, CB_ADDSTRING, 0, (LPARAM)"Single pass");
 		SendDlgItemMessage(hDlg, IDC_MODE, CB_ADDSTRING, 0, (LPARAM)"Twopass - 1st pass");
@@ -1935,7 +2038,7 @@ BOOL CALLBACK main_proc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		SendDlgItemMessage(hDlg, IDC_MODE, CB_ADDSTRING, 0, (LPARAM)"Null test speed");
 #endif
 
-		for (i=0; i<quality_table_num; i++)
+		for (i=0; i<(unsigned int)quality_table_num; i++)
 			SendDlgItemMessage(hDlg, IDC_QUALITY, CB_ADDSTRING, 0, (LPARAM)quality_table[i].name);
     SendDlgItemMessage(hDlg, IDC_QUALITY, CB_ADDSTRING, 0, (LPARAM)QUALITY_USER_STRING);
 
@@ -1954,7 +2057,7 @@ BOOL CALLBACK main_proc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			EnumChildWindows(hDlg, enum_tooltips, 0);
 		}
 
-		SetClassLong(GetDlgItem(hDlg, IDC_BITRATE_S), GCL_HCURSOR, (LONG)LoadCursor(NULL, IDC_HAND));
+		SetClassLongPtr(GetDlgItem(hDlg, IDC_BITRATE_S), GCLP_HCURSOR, (LONG_PTR)LoadCursor(NULL, IDC_HAND));
 
 		{
 			DWORD ext_style = ListView_GetExtendedListViewStyle(GetDlgItem(hDlg,IDC_ZONES));
@@ -2227,7 +2330,7 @@ BOOL CALLBACK main_proc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 /* LICENSE DIALOG ====================================================================== */
 /* ===================================================================================== */
 
-static BOOL CALLBACK license_proc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
+static INT_PTR CALLBACK license_proc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
 	switch (uMsg)
 	{
@@ -2245,13 +2348,13 @@ static BOOL CALLBACK license_proc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lP
 					}
 				}
 			}
-			SetWindowLong(hDlg, GWL_USERDATA, (LONG)hGlobal);
+			SetWindowLongPtr(hDlg, GWLP_USERDATA, (LONG_PTR)hGlobal);
 		}
 		break;
 
 	case WM_DESTROY :
 		{
-			HGLOBAL hGlobal = (HGLOBAL)GetWindowLong(hDlg, GWL_USERDATA);
+			HGLOBAL hGlobal = (HGLOBAL)GetWindowLongPtr(hDlg, GWLP_USERDATA);
 			if (hGlobal) {
 				FreeResource(hGlobal);
 			}
@@ -2283,7 +2386,7 @@ static BOOL CALLBACK license_proc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lP
 /* ABOUT DIALOG ======================================================================== */
 /* ===================================================================================== */
 
-BOOL CALLBACK about_proc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
+INT_PTR CALLBACK about_proc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
 	switch (uMsg)
 	{
@@ -2296,7 +2399,12 @@ BOOL CALLBACK about_proc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			HINSTANCE m_hdll;
 
 			SetDlgItemText(hDlg, IDC_BUILD, XVID_BUILD);
-			SetDlgItemText(hDlg, IDC_SPECIAL_BUILD, XVID_SPECIAL_BUILD);
+#ifdef _WIN64
+			wsprintf(core, "(%s, 64-bit Edition)", XVID_SPECIAL_BUILD);
+#else
+			wsprintf(core, "(%s)", XVID_SPECIAL_BUILD);
+#endif
+			SetDlgItemText(hDlg, IDC_SPECIAL_BUILD, core);
 
 			memset(&info, 0, sizeof(info));
 			info.version = XVID_VERSION;
@@ -2331,7 +2439,7 @@ BOOL CALLBACK about_proc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				}
 			}
 
-			SetClassLong(GetDlgItem(hDlg, IDC_WEBSITE), GCL_HCURSOR, (LONG)LoadCursor(NULL, IDC_HAND));
+			SetClassLongPtr(GetDlgItem(hDlg, IDC_WEBSITE), GCLP_HCURSOR, (LONG_PTR)LoadCursor(NULL, IDC_HAND));
 			SetDlgItemText(hDlg, IDC_WEBSITE, XVID_WEBSITE);
 		}
 		break;
@@ -2340,7 +2448,7 @@ BOOL CALLBACK about_proc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		{
 			SetBkMode((HDC)wParam, TRANSPARENT) ;
 			SetTextColor((HDC)wParam, RGB(0x00,0x00,0xc0));
-			return (BOOL)GetStockObject(NULL_BRUSH);
+			return (INT_PTR)GetStockObject(NULL_BRUSH);
 		}
 		return 0;
 

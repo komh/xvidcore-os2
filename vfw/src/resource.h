@@ -1,5 +1,5 @@
 //{{NO_DEPENDENCIES}}
-// Microsoft Developer Studio generated include file.
+// Microsoft Visual C++ generated include file.
 // Used by resource.rc
 //
 #define IDC_LICENSE                     3
@@ -30,6 +30,10 @@
 #define IDD_LICENSE                     129
 #define IDR_GPL                         131
 #define IDD_COMMON                      132
+#define IDI_MOBILE                      135
+#define IDI_HOME                        136
+#define IDI_HD720                       137
+#define IDI_HD1080                      138
 #define WIZ_CYDLG                       140
 #define PROP_MIN_CYDLG                  144
 #define PROP_SM_CYDLG                   188
@@ -97,7 +101,9 @@
 #define IDC_CPU_3DNOW                   1057
 #define IDC_CPU_3DNOWEXT                1058
 #define IDC_LOAD                        1059
+#define IDC_CPU_SSE3                    1059
 #define IDC_SAVE                        1060
+#define IDC_CPU_SSE4                    1060
 #define IDC_WEBSITE                     1061
 #define IDC_BUILD                       1062
 #define IDC_CORE                        1063
@@ -424,14 +430,19 @@
 #define IDC_LEVEL_VMV_S                 1402
 #define IDC_LEVEL_VCV_S                 1403
 #define IDC_LEVEL_LEVEL_G               1404
+#define IDC_LUMMASK_S                   1405
+#define IDC_PROFILE_LOGO                1406
+#define IDC_PROFILE_LABEL               1407
+#define IDC_VHQ_METRIC                  1408
+#define IDC_SLICES                      1409
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE        133
+#define _APS_NEXT_RESOURCE_VALUE        139
 #define _APS_NEXT_COMMAND_VALUE         40001
-#define _APS_NEXT_CONTROL_VALUE         1405
+#define _APS_NEXT_CONTROL_VALUE         1410
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

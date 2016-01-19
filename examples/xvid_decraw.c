@@ -20,7 +20,7 @@
  *  along with this program; if not, write to the Free Software
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  *
- * $Id: xvid_decraw.c,v 1.22.2.1 2006/07/10 15:19:41 Isibaar Exp $
+ * $Id: xvid_decraw.c 1985 2011-05-18 09:02:35Z Isibaar $
  *
  ****************************************************************************/
 
@@ -56,6 +56,7 @@
 
 #define USE_PNM 0
 #define USE_TGA 1
+#define USE_YUV 2
 
 static int XDIM = 0;
 static int YDIM = 0;
@@ -65,6 +66,8 @@ static char *ARG_INPUTFILE = NULL;
 static int CSP = XVID_CSP_I420;
 static int BPP = 1;
 static int FORMAT = USE_PNM;
+static int POSTPROC = 0;
+static 	int ARG_THREADS = 0;
 
 static char filepath[256] = "./";
 static void *dec_handle = NULL;
@@ -87,9 +90,10 @@ static int dec_main(unsigned char *istream,
 					xvid_dec_stats_t *xvid_dec_stats);
 static int dec_stop();
 static void usage();
-static int write_image(char *prefix, unsigned char *image);
+static int write_image(char *prefix, unsigned char *image, int filenr);
 static int write_pnm(char *filename, unsigned char *image);
 static int write_tga(char *filename, unsigned char *image);
+static int write_yuv(char *filename, unsigned char *image);
 
 const char * type2str(int type)
 {
@@ -120,7 +124,7 @@ int main(int argc, char *argv[])
 	long totalsize;
 	int status;
   
-	int use_assembler = 0;
+	int use_assembler = 1;
 	int debug_level = 0;
   
 	char filename[256];
@@ -130,7 +134,7 @@ int main(int argc, char *argv[])
 	int i;
 
 	printf("xvid_decraw - raw mpeg4 bitstream decoder ");
-	printf("written by Christoph Lampert 2002-2003\n\n");
+	printf("written by Christoph Lampert\n\n");
 
 /*****************************************************************************
  * Command line parsing
@@ -138,8 +142,8 @@ int main(int argc, char *argv[])
 
 	for (i=1; i< argc; i++) {
  
-		if (strcmp("-asm", argv[i]) == 0 ) {
-			use_assembler = 1;
+		if (strcmp("-noasm", argv[i]) == 0 ) {
+			use_assembler = 0;
 		} else if (strcmp("-debug", argv[i]) == 0 && i < argc - 1 ) {
 			i++;
 			if (sscanf(argv[i], "0x%x", &debug_level) != 1) {
@@ -170,13 +174,23 @@ int main(int argc, char *argv[])
 				CSP = XVID_CSP_I420;
 				BPP = 1;
 			}
+		} else if (strcmp("-postproc", argv[i]) == 0 && i < argc - 1 ) {
+			i++;
+			POSTPROC = atoi(argv[i]);
+			if (POSTPROC < 0) POSTPROC = 0;
+			if (POSTPROC > 2) POSTPROC = 2;
 		} else if (strcmp("-f", argv[i]) == 0 && i < argc -1) {
 			i++;
 			if (strcmp(argv[i], "tga") == 0) {
 				FORMAT = USE_TGA;
+			} else if (strcmp(argv[i], "yuv") == 0) {
+				FORMAT = USE_YUV;
 			} else {
 				FORMAT = USE_PNM;
 			}
+		} else if (strcmp("-threads", argv[i]) == 0 && i < argc -1) {
+			i++;
+			ARG_THREADS = atoi(argv[i]);
 		} else if (strcmp("-help", argv[i]) == 0) {
 			usage();
 			return(0);
@@ -212,6 +226,9 @@ int main(int argc, char *argv[])
 	if (BPP != 1 && BPP != 3 && FORMAT == USE_PNM) {
 		FORMAT = USE_TGA;
 	}
+	if (BPP != 1 && FORMAT == USE_YUV) {
+		FORMAT = USE_TGA;
+	}
 
 /*****************************************************************************
  *        Memory allocation
@@ -224,7 +241,7 @@ int main(int argc, char *argv[])
 		goto free_all_memory;	
     
 /*****************************************************************************
- *        XviD PART  Start
+ *        Xvid PART  Start
  ****************************************************************************/
 
 	status = dec_init(use_assembler, debug_level);
@@ -240,7 +257,7 @@ int main(int argc, char *argv[])
  ****************************************************************************/
 
 	/* Fill the buffer */
-	useful_bytes = fread(mp4_buffer, 1, BUFFER_SIZE, in_file);
+	useful_bytes = (int) fread(mp4_buffer, 1, BUFFER_SIZE, in_file);
 
 	totaldectime = 0;
 	totalsize = 0;
@@ -257,7 +274,7 @@ int main(int argc, char *argv[])
 		 * then fill it.
 		 */
 		if (mp4_ptr > mp4_buffer + BUFFER_SIZE/2) {
-			int already_in_buffer = (mp4_buffer + BUFFER_SIZE - mp4_ptr);
+			int already_in_buffer = (int)(mp4_buffer + BUFFER_SIZE - mp4_ptr);
 
 			/* Move data if needed */
 			if (already_in_buffer > 0)
@@ -268,10 +285,9 @@ int main(int argc, char *argv[])
 
 			/* read new data */
             if(!feof(in_file)) {
-
-				useful_bytes += fread(mp4_buffer + already_in_buffer,
-									  1, BUFFER_SIZE - already_in_buffer,
-									  in_file);
+				useful_bytes += (int) fread(mp4_buffer + already_in_buffer,
+									        1, BUFFER_SIZE - already_in_buffer,
+									        in_file);
 			}
 		}
 
@@ -369,8 +385,9 @@ int main(int argc, char *argv[])
 				
 		/* Save output frame if required */
 		if (ARG_SAVEDECOUTPUT) {
-			sprintf(filename, "%sdec%05d", filepath, filenr);
-			if(write_image(filename, out_buffer)) {
+			sprintf(filename, "%sdec", filepath);
+
+			if(write_image(filename, out_buffer, filenr)) {
 				fprintf(stderr,
 						"Error writing decoded frame %s\n",
 						filename);
@@ -417,8 +434,9 @@ int main(int argc, char *argv[])
 
 		/* Save output frame if required */
 		if (ARG_SAVEDECOUTPUT) {
-			sprintf(filename, "%sdec%05d", filepath, filenr);
-			if(write_image(filename, out_buffer)) {
+			sprintf(filename, "%sdec", filepath);
+
+			if(write_image(filename, out_buffer, filenr)) {
 				fprintf(stderr,
 						"Error writing decoded frame %s\n",
 						filename);
@@ -443,7 +461,7 @@ int main(int argc, char *argv[])
 	}
 		
 /*****************************************************************************
- *      XviD PART  Stop
+ *      Xvid PART  Stop
  ****************************************************************************/
 
  release_all:
@@ -469,12 +487,14 @@ static void usage()
 
 	fprintf(stderr, "Usage : xvid_decraw [OPTIONS]\n");
 	fprintf(stderr, "Options :\n");
-	fprintf(stderr, " -asm           : use assembly optimizations (default=disabled)\n");
+	fprintf(stderr, " -noasm         : don't use assembly optimizations (default=enabled)\n");
 	fprintf(stderr, " -debug         : debug level (debug=0)\n");
 	fprintf(stderr, " -i string      : input filename (default=stdin)\n");
 	fprintf(stderr, " -d             : save decoder output\n");
 	fprintf(stderr, " -c csp         : choose colorspace output (rgb16, rgb24, rgb32, yv12, i420)\n");
-	fprintf(stderr, " -f format      : choose output file format (tga, pnm, pgm)\n");
+	fprintf(stderr, " -f format      : choose output file format (tga, pnm, pgm, yuv)\n");
+	fprintf(stderr, " -postproc      : postprocessing level (0=off, 1=deblock, 2=deblock+dering)\n");
+	fprintf(stderr, " -threads int   : number of threads\n");
 	fprintf(stderr, " -m             : save mpeg4 raw stream to individual files\n");
 	fprintf(stderr, " -help          : This help message\n");
 	fprintf(stderr, " (* means default)\n");
@@ -504,7 +524,7 @@ msecond()
  *              output functions
  ****************************************************************************/
 
-static int write_image(char *prefix, unsigned char *image)
+static int write_image(char *prefix, unsigned char *image, int filenr)
 {
 	char filename[1024];
 	char *ext;
@@ -514,6 +534,8 @@ static int write_image(char *prefix, unsigned char *image)
 		ext = "pgm";
 	} else if (FORMAT == USE_PNM && BPP == 3) {
 		ext = "pnm";
+	} else if (FORMAT == USE_YUV) {
+		ext = "yuv";
 	} else if (FORMAT == USE_TGA) {
 		ext = "tga";
 	} else {
@@ -521,10 +543,20 @@ static int write_image(char *prefix, unsigned char *image)
 		exit(-1);
 	}
 
-	sprintf(filename, "%s.%s", prefix, ext);
+	if (FORMAT == USE_YUV) {
+		sprintf(filename, "%s.%s", prefix, ext);
+
+		if (!filenr) { 
+			FILE *fp = fopen(filename, "wb"); 
+			fclose(fp); 
+		}
+	} else
+		sprintf(filename, "%s%05d.%s", prefix, filenr, ext);
 
 	if (FORMAT == USE_PNM) {
 		ret = write_pnm(filename, image);
+	} else if (FORMAT == USE_YUV) {
+		ret = write_yuv(filename, image);
 	} else {
 		ret = write_tga(filename, image);
 	}
@@ -624,7 +656,7 @@ static int write_pnm(char *filename, unsigned char *image)
 
 	if (BPP == 1) {
 		int i;
-		fprintf(f, "P5\n#xvid\n%i %i\n255\n", XDIM, YDIM*3/2);
+		fprintf(f, "P5\n%i %i\n255\n", XDIM, YDIM*3/2);
 
 		fwrite(image, 1, XDIM*YDIM, f);
 
@@ -653,6 +685,22 @@ static int write_pnm(char *filename, unsigned char *image)
 	return 0;
 }
 
+static int write_yuv(char *filename, unsigned char *image)
+{
+	FILE * f;
+
+	f = fopen(filename, "ab+");
+	if ( f == NULL) {
+		return -1;
+	}
+
+	fwrite(image, 1, 3*XDIM*YDIM/2, f);
+
+	fclose(f);
+
+	return 0;
+}
+
 /*****************************************************************************
  * Routines for decoding: init decoder, use, and stop decoder
  ****************************************************************************/
@@ -665,14 +713,49 @@ dec_init(int use_assembler, int debug_level)
 
 	xvid_gbl_init_t   xvid_gbl_init;
 	xvid_dec_create_t xvid_dec_create;
+	xvid_gbl_info_t   xvid_gbl_info;
 
 	/* Reset the structure with zeros */
 	memset(&xvid_gbl_init, 0, sizeof(xvid_gbl_init_t));
 	memset(&xvid_dec_create, 0, sizeof(xvid_dec_create_t));
+	memset(&xvid_gbl_info, 0, sizeof(xvid_gbl_info));
 
 	/*------------------------------------------------------------------------
-	 * XviD core initialization
+	 * Xvid core initialization
 	 *----------------------------------------------------------------------*/
+
+	xvid_gbl_info.version = XVID_VERSION;
+	xvid_global(NULL, XVID_GBL_INFO, &xvid_gbl_info, NULL);
+
+	if (xvid_gbl_info.build != NULL) {
+		fprintf(stderr, "xvidcore build version: %s\n", xvid_gbl_info.build);
+	}
+	fprintf(stderr, "Bitstream version: %d.%d.%d\n", XVID_VERSION_MAJOR(xvid_gbl_info.actual_version), XVID_VERSION_MINOR(xvid_gbl_info.actual_version), XVID_VERSION_PATCH(xvid_gbl_info.actual_version));
+	fprintf(stderr, "Detected CPU flags: ");
+	if (xvid_gbl_info.cpu_flags & XVID_CPU_ASM)
+		fprintf(stderr, "ASM ");
+	if (xvid_gbl_info.cpu_flags & XVID_CPU_MMX)
+		fprintf(stderr, "MMX ");
+	if (xvid_gbl_info.cpu_flags & XVID_CPU_MMXEXT)
+		fprintf(stderr, "MMXEXT ");
+	if (xvid_gbl_info.cpu_flags & XVID_CPU_SSE)
+		fprintf(stderr, "SSE ");
+	if (xvid_gbl_info.cpu_flags & XVID_CPU_SSE2)
+		fprintf(stderr, "SSE2 ");
+	if (xvid_gbl_info.cpu_flags & XVID_CPU_SSE3)
+		fprintf(stderr, "SSE3 ");
+	if (xvid_gbl_info.cpu_flags & XVID_CPU_SSE41)
+		fprintf(stderr, "SSE41 ");
+    if (xvid_gbl_info.cpu_flags & XVID_CPU_3DNOW)
+		fprintf(stderr, "3DNOW ");
+	if (xvid_gbl_info.cpu_flags & XVID_CPU_3DNOWEXT)
+		fprintf(stderr, "3DNOWEXT ");
+	if (xvid_gbl_info.cpu_flags & XVID_CPU_TSC)
+		fprintf(stderr, "TSC ");
+	fprintf(stderr, "\n");
+	fprintf(stderr, "Detected %d cpus,", xvid_gbl_info.num_threads);
+	if (!ARG_THREADS) ARG_THREADS = xvid_gbl_info.num_threads;
+	fprintf(stderr, " using %d threads.\n", ARG_THREADS);
 
 	/* Version */
 	xvid_gbl_init.version = XVID_VERSION;
@@ -692,7 +775,7 @@ dec_init(int use_assembler, int debug_level)
 	xvid_global(NULL, 0, &xvid_gbl_init, NULL);
 
 	/*------------------------------------------------------------------------
-	 * XviD encoder initialization
+	 * Xvid decoder initialization
 	 *----------------------------------------------------------------------*/
 
 	/* Version */
@@ -704,6 +787,8 @@ dec_init(int use_assembler, int debug_level)
 	 */
 	xvid_dec_create.width = 0;
 	xvid_dec_create.height = 0;
+
+	xvid_dec_create.num_threads = ARG_THREADS;
 
 	ret = xvid_decore(NULL, XVID_DEC_CREATE, &xvid_dec_create, NULL);
 
@@ -733,7 +818,12 @@ dec_main(unsigned char *istream,
 	xvid_dec_stats->version = XVID_VERSION;
 
 	/* No general flags to set */
-	xvid_dec_frame.general          = 0;
+	if (POSTPROC == 1)
+		xvid_dec_frame.general          = XVID_DEBLOCKY | XVID_DEBLOCKUV;
+	else if (POSTPROC==2)
+		xvid_dec_frame.general          = XVID_DEBLOCKY | XVID_DEBLOCKUV | XVID_DERINGY | XVID_DERINGUV;
+	else
+		xvid_dec_frame.general          = 0;
 
 	/* Input stream */
 	xvid_dec_frame.bitstream        = istream;

@@ -3,7 +3,7 @@
  *  XVID MPEG-4 VIDEO CODEC
  *  - Encoder related header  -
  *
- *  Copyright(C) 2002-2003 Michael Militzer <isibaar@xvid.org>
+ *  Copyright(C) 2002-2010 Michael Militzer <isibaar@xvid.org>
  *               2002-2003 Peter Ross <pross@xvid.org>
  *
  *  This program is free software ; you can redistribute it and/or modify
@@ -20,7 +20,7 @@
  *  along with this program ; if not, write to the Free Software
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  *
- * $Id: encoder.h,v 1.28 2004/03/22 22:36:23 edgomez Exp $
+ * $Id: encoder.h 1985 2011-05-18 09:02:35Z Isibaar $
  *
  ****************************************************************************/
 
@@ -34,6 +34,9 @@
 /*****************************************************************************
  * Constants
  ****************************************************************************/
+
+/* lambda base exponential. 1<<LAMBDA_EXP is the neutral lambda */
+#define LAMBDA_EXP		6
 
 /*****************************************************************************
  * Types
@@ -76,11 +79,6 @@ typedef struct
 	int par_width;
 	int par_height;
 
-#ifdef _SMP
-	int num_threads;
-#endif
-
-
 	int iMaxKeyInterval;
 	int max_bframes;
 
@@ -98,8 +96,8 @@ typedef struct
 	int64_t m_stamp;
 
 	uint16_t *mpeg_quant_matrices;
+	uint32_t last_quant_initialized_intra; /* needed for mpeg matrices initialization */
 } MBParam;
-
 
 typedef struct
 {
@@ -110,8 +108,8 @@ typedef struct
 	int mblks;
 	int ublks;
 	int gblks;
+	int iMVBits;
 } Statistics;
-
 
 /* encoding queue */
 typedef struct
@@ -121,7 +119,6 @@ typedef struct
 	unsigned char quant_inter_matrix[64];
 	IMAGE image;
 } QUEUEINFO;
-
 
 typedef struct
 {
@@ -155,6 +152,7 @@ typedef struct
 	int is_edged, is_interpolated;
 } FRAMEINFO;
 
+#include "motion/motion_smp.h"
 
 typedef struct
 {
@@ -174,6 +172,10 @@ typedef struct
     /* dquant */
 
     int * temp_dquants;
+
+    /* lambda */
+
+    float * temp_lambda;
 
 	/* images */
 
@@ -210,9 +212,15 @@ typedef struct
 	int closed_bframenum; /* == -1 if there is no fixup intended */
     QUEUEINFO closed_qframe;	/* qFrame, only valid when >= 0 */
 
+	/* multithreaded stuff */
+	int num_threads;			/* number of encoder threads */
+	SMPData * smpData;			/* data structures used to pass all thread-specific data */
+
 	int m_framenum; /* debug frame num counter; unlike iFrameNum, does not reset at ivop */
 
 	float fMvPrevSigma;
+
+	int num_slices;			/* number of slices to code */
 } Encoder;
 
 /*****************************************************************************
@@ -246,7 +254,6 @@ get_fcode(uint16_t sr)
 	else
 		return 0;
 }
-
 
 /*****************************************************************************
  * Prototypes
