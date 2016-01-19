@@ -3,8 +3,8 @@
  *  XVID MPEG-4 VIDEO CODEC
  *  - Native API implementation  -
  *
- *  Copyright(C) 2001-2011 Peter Ross <pross@xvid.org>
- *               2002-2011 Michael Militzer <isibaar@xvid.org>
+ *  Copyright(C) 2001-2014 Peter Ross <pross@xvid.org>
+ *               2002-2014 Michael Militzer <isibaar@xvid.org>
  *
  *  This program is free software ; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -20,7 +20,7 @@
  *  along with this program ; if not, write to the Free Software
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  *
- * $Id: xvid.c 2011 2011-05-23 07:47:37Z Isibaar $
+ * $Id: xvid.c 2123 2015-06-17 19:49:29Z Isibaar $
  *
  ****************************************************************************/
 
@@ -367,7 +367,7 @@ int xvid_gbl_init(xvid_gbl_init_t * init)
 
 		/* Quantization related functions */
 		quant_h263_intra   = quant_h263_intra_mmx;
-                quant_h263_inter   = quant_h263_inter_mmx;
+		quant_h263_inter   = quant_h263_inter_mmx;
 		dequant_h263_intra = dequant_h263_intra_mmx;
 		dequant_h263_inter = dequant_h263_inter_mmx;
 		quant_mpeg_intra   = quant_mpeg_intra_mmx;
@@ -699,7 +699,7 @@ xvid_gbl_info(xvid_gbl_info_t * info)
 		return XVID_ERR_VERSION;
 
 	info->actual_version = XVID_VERSION;
-	info->build = "xvid-1.3.2";
+	info->build = "xvid-1.3.4";
 	info->cpu_flags = detect_cpu_flags();
 	info->num_threads = 0; /* single-thread */
 

@@ -3,7 +3,7 @@
  *  XVID MPEG-4 VIDEO CODEC
  *  - Configuration processing header file -
  *
- *  Copyright(C) 2002-2011 Peter Ross <pross@xvid.org>
+ *  Copyright(C) 2002-2012 Peter Ross <pross@xvid.org>
  *
  *  This program is free software ; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -19,7 +19,7 @@
  *  along with this program ; if not, write to the Free Software
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  *
- * $Id: config.h 1995 2011-05-18 16:13:23Z Isibaar $
+ * $Id: config.h 2114 2015-06-14 19:18:14Z Isibaar $
  *
  ****************************************************************************/
 
@@ -67,6 +67,7 @@ typedef struct
 	int aspect_ratio;
 	int num_threads;
 	DWORD cpu;
+	int bTrayIcon;
 } CONFIG;
 
 
@@ -76,7 +77,7 @@ extern CONFIG g_config;
 
 /* functions */
 void LoadRegistryInfo();
-void SaveRegistryInfo();
+void SaveRegistryInfo(int perfCount);
 INT_PTR CALLBACK adv_proc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 #define XVID_DLL_NAME "xvidcore.dll"

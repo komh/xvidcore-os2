@@ -19,7 +19,7 @@
  *  along with this program ; if not, write to the Free Software
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  *
- * $Id: global.h 1985 2011-05-18 09:02:35Z Isibaar $
+ * $Id: global.h 2057 2011-12-30 13:04:28Z Isibaar $
  *
  ****************************************************************************/
 
@@ -251,8 +251,12 @@ get_dc_scaler(uint32_t quant,
 
 /* useful macros */
 
+#ifndef MIN
 #define MIN(X, Y) ((X)<(Y)?(X):(Y))
+#endif
+#ifndef MAX
 #define MAX(X, Y) ((X)>(Y)?(X):(Y))
+#endif
 /* #define ABS(X)    (((X)>0)?(X):-(X)) */
 #define SIGN(X)   (((X)>0)?1:-1)
 #define CLIP(X,AMIN,AMAX)   (((X)<(AMIN)) ? (AMIN) : ((X)>(AMAX)) ? (AMAX) : (X))

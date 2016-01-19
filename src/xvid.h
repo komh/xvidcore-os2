@@ -3,7 +3,7 @@
  * XVID MPEG-4 VIDEO CODEC
  * - Xvid Main header file -
  *
- *  Copyright(C) 2001-2011 Peter Ross <pross@xvid.org>
+ *  Copyright(C) 2001-2014 Peter Ross <pross@xvid.org>
  *
  *  This program is free software ; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -19,7 +19,7 @@
  *  along with this program ; if not, write to the Free Software
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  *
- * $Id: xvid.h 1985 2011-05-18 09:02:35Z Isibaar $
+ * $Id: xvid.h 2123 2015-06-17 19:49:29Z Isibaar $
  *
  ****************************************************************************/
 
@@ -57,7 +57,7 @@ extern "C" {
 #define XVID_API_MAJOR(a)        (((a)>>16) & 0xff)
 #define XVID_API_MINOR(a)        (((a)>> 0) & 0xff)
 
-#define XVID_VERSION             XVID_MAKE_VERSION(1,3,2)
+#define XVID_VERSION             XVID_MAKE_VERSION(1,3,4)
 #define XVID_API                 XVID_MAKE_API(4, 3)
 
 /* Bitstream Version
@@ -71,7 +71,7 @@ extern "C" {
  * doesnt hurt but not increasing it could cause difficulty for decoders in the
  * future
  */
-#define XVID_BS_VERSION 64 
+#define XVID_BS_VERSION 67 
 
 /*****************************************************************************
  * error codes

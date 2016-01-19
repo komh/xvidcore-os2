@@ -21,7 +21,7 @@
  *  along with this program ; if not, write to the Free Software
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  *
- * $Id: encoder.c 1985 2011-05-18 09:02:35Z Isibaar $
+ * $Id: encoder.c 2099 2014-11-25 23:17:01Z Isibaar $
  *
  ****************************************************************************/
 
@@ -452,7 +452,7 @@ enc_create(xvid_enc_create_t * create)
 #ifndef HAVE_PTHREAD
 		int t = MAX(1, create->num_threads);
 #else
-		int t = MIN(create->num_threads, (int) (pEnc->mbParam.mb_height>>1)); /* at least two rows per thread */
+		int t = MAX(1, MIN(create->num_threads, (int) (pEnc->mbParam.mb_height>>1))); /* at least two rows per thread */
 #endif
 		int threads_per_slice = MAX(1, (t / pEnc->num_slices));
 		int rows_per_thread = (pEnc->mbParam.mb_height + threads_per_slice - 1) / threads_per_slice;

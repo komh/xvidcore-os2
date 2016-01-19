@@ -3,7 +3,7 @@
  *  XVID MPEG-4 VIDEO CODEC
  *  - Configuration processing -
  *
- *  Copyright(C) 2002-2011 Peter Ross <pross@xvid.org>
+ *  Copyright(C) 2002-2012 Peter Ross <pross@xvid.org>
  *
  *  This program is free software ; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -19,7 +19,7 @@
  *  along with this program ; if not, write to the Free Software
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  *
- * $Id: config.c 1995 2011-05-18 16:13:23Z Isibaar $
+ * $Id: config.c 2114 2015-06-14 19:18:14Z Isibaar $
  *
  ****************************************************************************/
 
@@ -57,11 +57,12 @@ void LoadRegistryInfo()
 	REG_GET_N("Decoder_Aspect_Ratio",  g_config.aspect_ratio, 0)
 	REG_GET_N("num_threads",  g_config.num_threads, 0)
 	REG_GET_N("cpu_flags", g_config.cpu, 0)
+    REG_GET_N("Tray_Icon", g_config.bTrayIcon, 1);
 
 	RegCloseKey(hKey);
 }
 
-void SaveRegistryInfo()
+void SaveRegistryInfo(int perfCount)
 {
 	HKEY hKey;
 	DWORD dispo;
@@ -81,18 +82,33 @@ void SaveRegistryInfo()
 		return;
 	}
 
-	REG_SET_N("Brightness", g_config.nBrightness);
-	REG_SET_N("Deblock_Y",  g_config.nDeblock_Y);
-	REG_SET_N("Deblock_UV", g_config.nDeblock_UV);
-	REG_SET_N("Dering_Y", g_config.nDering_Y);
-	REG_SET_N("Dering_UV", g_config.nDering_UV);
-	REG_SET_N("FilmEffect", g_config.nFilmEffect);
-	REG_SET_N("ForceColorspace", g_config.nForceColorspace);
-	REG_SET_N("FlipVideo", g_config.nFlipVideo);
-	REG_SET_N("Supported_4CC",  g_config.supported_4cc);
-	REG_SET_N("Videoinfo_Compat",  g_config.videoinfo_compat);
-	REG_SET_N("Decoder_Aspect_Ratio", g_config.aspect_ratio);
-	REG_SET_N("num_threads",  g_config.num_threads);
+	if (perfCount > 0) {
+		unsigned int updateCount = 0;
+		HKEY hKey2 = hKey;
+		DWORD size;
+
+		RegOpenKeyEx(XVID_REG_KEY, XVID_REG_SUBKEY, 0, KEY_READ, &hKey);
+		REG_GET_N("PerfCount", updateCount, 0);
+		RegCloseKey(hKey);
+		hKey = hKey2;
+		updateCount += perfCount;
+		REG_SET_N("PerfCount", updateCount);
+	}
+	else {
+		REG_SET_N("Brightness", g_config.nBrightness);
+		REG_SET_N("Deblock_Y", g_config.nDeblock_Y);
+		REG_SET_N("Deblock_UV", g_config.nDeblock_UV);
+		REG_SET_N("Dering_Y", g_config.nDering_Y);
+		REG_SET_N("Dering_UV", g_config.nDering_UV);
+		REG_SET_N("FilmEffect", g_config.nFilmEffect);
+		REG_SET_N("ForceColorspace", g_config.nForceColorspace);
+		REG_SET_N("FlipVideo", g_config.nFlipVideo);
+		REG_SET_N("Supported_4CC", g_config.supported_4cc);
+		REG_SET_N("Videoinfo_Compat", g_config.videoinfo_compat);
+		REG_SET_N("Decoder_Aspect_Ratio", g_config.aspect_ratio);
+		REG_SET_N("num_threads", g_config.num_threads);
+		REG_SET_N("Tray_Icon", g_config.bTrayIcon);
+	}
 
 	RegCloseKey(hKey);
 }
@@ -123,7 +139,7 @@ INT_PTR CALLBACK adv_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				MessageBox(0, "You have changed the default aspect ratio.\r\nClose the movie and open it for the new aspect ratio to take effect.", "Xvid DShow", MB_TOPMOST);
 			}
 			g_config.aspect_ratio = (int) aspect_ratio;
-			SaveRegistryInfo();
+			SaveRegistryInfo(0);
 		}
 		break;
 
@@ -195,6 +211,10 @@ INT_PTR CALLBACK adv_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		SendMessage(GetDlgItem(hwnd, IDC_MP4V), BM_SETCHECK, g_config.supported_4cc & SUPPORT_MP4V, 0);
 		SendMessage(GetDlgItem(hwnd, IDC_COMPAT), BM_SETCHECK, g_config.videoinfo_compat, 0);
 
+
+		// TrayIcon
+		SendMessage(GetDlgItem(hwnd, IDC_TRAYICON), BM_SETCHECK, g_config.bTrayIcon, 0);
+
 		EnableWindow(GetDlgItem(hwnd,IDC_DERINGY),g_config.nDeblock_Y);
 		EnableWindow(GetDlgItem(hwnd,IDC_DERINGUV),g_config.nDeblock_UV);
 
@@ -209,8 +229,11 @@ INT_PTR CALLBACK adv_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		{
 		case IDC_RESET:
 			ZeroMemory(&g_config, sizeof(CONFIG));
+			g_config.bTrayIcon = 1;
+
 			hBrightness = GetDlgItem(hwnd, IDC_BRIGHTNESS);
 			SendMessage(hBrightness, TBM_SETPOS, (WPARAM) TRUE, (LPARAM) g_config.nBrightness);
+
 			// Load Buttons
 			SendMessage(GetDlgItem(hwnd, IDC_DEBLOCK_Y), BM_SETCHECK, g_config.nDeblock_Y, 0);
 			SendMessage(GetDlgItem(hwnd, IDC_DEBLOCK_UV), BM_SETCHECK, g_config.nDeblock_UV, 0);
@@ -222,6 +245,7 @@ INT_PTR CALLBACK adv_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			SendMessage(GetDlgItem(hwnd, IDC_COLORSPACE), CB_SETCURSEL, g_config.nForceColorspace, 0); 
 			g_config.aspect_ratio = 0;
 			SendMessage(GetDlgItem(hwnd, IDC_USE_AR), CB_SETCURSEL, g_config.aspect_ratio, 0);
+			SendMessage(GetDlgItem(hwnd, IDC_TRAYICON), CB_SETCURSEL, g_config.bTrayIcon, 0);
 			break;
 		case IDC_DEBLOCK_Y:
 			g_config.nDeblock_Y = !g_config.nDeblock_Y;
@@ -253,6 +277,9 @@ INT_PTR CALLBACK adv_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		case IDC_COMPAT:
 			g_config.videoinfo_compat = !g_config.videoinfo_compat;
 			break;
+		case IDC_TRAYICON:
+			g_config.bTrayIcon = !g_config.bTrayIcon;
+			break;
 		default :
 			return FALSE;
 		}
@@ -261,14 +288,14 @@ INT_PTR CALLBACK adv_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 		EnableWindow(GetDlgItem(hwnd, IDC_USE_AR), !g_config.videoinfo_compat);
 
-		SaveRegistryInfo();
+		SaveRegistryInfo(0);
 		
 
 		break;
 	case WM_NOTIFY:
 		hBrightness = GetDlgItem(hwnd, IDC_BRIGHTNESS);
 		g_config.nBrightness = (int) SendMessage(hBrightness, TBM_GETPOS, (WPARAM)NULL, (LPARAM)NULL);
-		SaveRegistryInfo();
+		SaveRegistryInfo(0);
 		break;
 	default :
 		return FALSE;
