@@ -49,6 +49,8 @@ BITS 32
 
 %ifdef FORMAT_COFF
 SECTION .rodata
+%elifdef FORMAT_OMF
+SECTION .rodata align=16 class=DATA use32 flat
 %else
 SECTION .rodata align=16
 %endif
@@ -136,7 +138,11 @@ mmx_one:
 ; Code
 ;=============================================================================
 
+%ifdef FORMAT_OMF
+SECTION .text class=CODE use32 flat
+%else
 SECTION .text
+%endif
 
 cglobal  sad16bi_3dn
 cglobal  sad8bi_3dn

@@ -88,7 +88,11 @@ BITS 32
 ; Code
 ;=============================================================================
 
+%ifdef FORMAT_OMF
+SECTION .text class=CODE use32 flat
+%else
 SECTION .text
+%endif
 
 cglobal calc_cbp_3dne
 

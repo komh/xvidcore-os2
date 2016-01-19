@@ -128,6 +128,8 @@ cextern xvid_FIR_0_0_0_1
 
 %ifdef FORMAT_COFF
 SECTION .rodata
+%elifdef FORMAT_OMF
+SECTION .rodata align=16 class=DATA use32 flat
 %else
 SECTION .rodata align=16
 %endif
@@ -199,7 +201,11 @@ FIR_C19: times 4 dw 19
 FIR_C20: times 4 dw 20
 FIR_C23: times 4 dw 23
 
+%ifdef FORMAT_OMF
+SECTION .text class=CODE use32 flat
+%else
 SECTION .text
+%endif
 
 ;//////////////////////////////////////////////////////////////////////
 ;// Here we go with the Q-Pel mess.

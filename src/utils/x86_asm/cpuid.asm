@@ -72,6 +72,8 @@ BITS 32
 ALIGN 32
 %ifdef FORMAT_COFF
 SECTION .rodata
+%elifdef FORMAT_OMF
+SECTION .rodata align=16 class=DATA use32 flat
 %else
 SECTION .rodata align=16
 %endif
@@ -96,7 +98,11 @@ vendorAMD:
 ; Code
 ;=============================================================================
 
+%ifdef FORMAT_OMF
+SECTION .text class=CODE use32 flat
+%else
 SECTION .text
+%endif
 
 ; int check_cpu_feature(void)
 

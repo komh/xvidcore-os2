@@ -274,7 +274,11 @@ NAME:
 ; Code
 ;=============================================================================
 
+%ifdef FORMAT_OMF
+SECTION .text class=CODE use32 flat
+%else
 SECTION .text
+%endif
 
 MAKE_YV12_TO_YV12	yv12_to_yv12_mmx, 0
 

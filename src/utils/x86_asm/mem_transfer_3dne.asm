@@ -52,6 +52,8 @@ BITS 32
 
 %ifdef FORMAT_COFF
 SECTION .rodata
+%elifdef FORMAT_OMF
+SECTION .rodata align=16 class=DATA use32 flat
 %else
 SECTION .rodata align=16
 %endif
@@ -71,7 +73,11 @@ mm_zero:
 ; Code
 ;=============================================================================
 
+%ifdef FORMAT_OMF
+SECTION .text class=CODE use32 flat
+%else
 SECTION .text
+%endif
 
 cglobal transfer_8to16copy_3dne
 cglobal transfer_16to8copy_3dne

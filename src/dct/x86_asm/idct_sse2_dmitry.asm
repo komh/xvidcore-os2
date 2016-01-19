@@ -65,6 +65,8 @@ BITS 32
 
 %ifdef FORMAT_COFF
 SECTION .rodata
+%elifdef FORMAT_OMF
+SECTION .rodata align=16 class=DATA use32 flat
 %else
 SECTION .rodata align=16
 %endif
@@ -167,7 +169,11 @@ ocos_4_16: dw  23170,  23170,  23170,  23170    ; cos * (2<<15) + 0.5
 ; Code
 ;=============================================================================
 
+%ifdef FORMAT_OMF
+SECTION .text class=CODE use32 flat
+%else
 SECTION .text
+%endif
 
 cglobal idct_sse2_dmitry
 

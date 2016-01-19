@@ -47,6 +47,8 @@ BITS 32
 
 %ifdef FORMAT_COFF
 SECTION .rodata
+%elifdef FORMAT_OMF
+SECTION .rodata align=16 class=DATA use32 flat
 %else
 SECTION .rodata align=16
 %endif
@@ -67,7 +69,11 @@ Mask_ff dw 0xff,0xff,0xff,0xff
 
 ;===========================================================================
 
+%ifdef FORMAT_OMF
+SECTION .text class=CODE use32 flat
+%else
 SECTION .text
+%endif
 
 cglobal xvid_Copy_Upsampled_8x8_16To8_mmx
 cglobal xvid_Add_Upsampled_8x8_16To8_mmx
