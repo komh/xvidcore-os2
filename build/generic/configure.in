@@ -272,6 +272,12 @@ case "$target_os" in
 	STATIC_EXTENSION="a"
 	OBJECT_EXTENSION="o"
 	;;
+     os2-emx*)
+	AC_MSG_RESULT([.dll .a .o])
+	STATIC_EXTENSION="a"
+	SHARED_EXTENSION="dll"
+	OBJECT_EXTENSION="o"
+	;;
      *)
         AC_MSG_RESULT([Unknown OS - Using .so .a .o])
 	STATIC_EXTENSION="a"
@@ -294,6 +300,8 @@ ALTIVEC_CFLAGS=""
 PRE_SHARED_LIB=""
 SO_API_MAJOR_LINK=""
 SO_LINK=""
+IMP_LIB=""
+IMPLIB_CMD=""
 case "$target_os" in
      linux*|solaris*|gnu*|*qnx*)
 	AC_MSG_RESULT([ok])
@@ -334,6 +342,15 @@ case "$target_os" in
 	   SPECIFIC_LDFLAGS="-r -keep_private_externs -nostdlib && \$(CC) \$(LDFLAGS) \$(PRE_SHARED_LIB) -o libxvidcore.\$(SHARED_EXTENSION).\$(API_MAJOR) -bundle -flat_namespace -undefined suppress"
 	fi
 	;;
+     os2-emx*)
+	AC_MSG_RESULT([ok])
+	STATIC_LIB="xvidcore.\$(STATIC_EXTENSION)"
+	SHARED_LIB="xvidcore.\$(SHARED_EXTENSION)"
+	IMP_LIB="xvidcore_dll.\$(STATIC_EXTENSION)"
+	SPECIFIC_LDFLAGS="-Zdll -Zcrtdll -Zbin-files libxvidcore_os2.def"
+	SPECIFIC_CFLAGS=""
+	IMPLIB_CMD="emximp -o \$(IMP_LIB) libxvidcore_os2.def"
+	;;
      beos)
 	AC_MSG_RESULT([ok])
 	STATIC_LIB="libxvidcore.\$(STATIC_EXTENSION)"
@@ -352,6 +369,14 @@ esac
 
 if test x"$PRE_SHARED_LIB" = x; then 
   PRE_SHARED_LIB=$SHARED_LIB
+fi
+
+if test x"$IMP_LIB" = x ; then
+  IMP_LIB=$SHARED_LIB
+fi
+
+if test x"$IMPLIB_CMD" = x ; then
+  IMPLIB_CMD="echo \"     ignoring IMPLIB\""
 fi
 
 dnl ==========================================================================
@@ -466,6 +491,12 @@ if test "$ARCHITECTURE" = "IA32" -o "$ARCHITECTURE" = "X86_64" ; then
                    rm -f conftest*
                fi
                MARK_FUNCS=""
+               ;;
+           os2-emx*)
+               AC_MSG_RESULT([aout])
+               NASM_FORMAT="aout"
+	       PREFIX="-DPREFIX"
+	       MARK_FUNCS=""
                ;;
            *darwin*)
                if test "$ARCHITECTURE" = "X86_64" ; then
@@ -758,6 +789,8 @@ AC_SUBST(SO_API_MAJOR_LINK)
 AC_SUBST(SO_LINK)
 AC_SUBST(SHARED_LIB)
 AC_SUBST(ALTIVEC_CFLAGS)
+AC_SUBST(IMP_LIB)
+AC_SUBST(IMPLIB_CMD)
 
 dnl ==========================================================================
 dnl

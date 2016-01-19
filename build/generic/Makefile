@@ -62,7 +62,7 @@ OBJECTS += $(PPC_ALTIVEC_OBJECTS)
 # The VPATH mechanism could use a "per target" build directory
 # To keep it simple at the moment, the directory is fixed to "build"
 BUILD_DIR = =build
-VPATH     = $(SRC_DIR):$(BUILD_DIR)
+VPATH     = $(SRC_DIR) $(BUILD_DIR)
 
 #-----------------------------------------------------------------------------
 # The default rule
@@ -134,6 +134,7 @@ $(SHARED_LIB): $(BUILD_DIR) $(OBJECTS)
 	@echo "  L: $(@F)"
 	@$(INSTALL) -m 644 libxvidcore.def $(BUILD_DIR)/libxvidcore.def
 	@$(INSTALL) -m 644 libxvidcore.ld $(BUILD_DIR)/libxvidcore.ld
+	@$(INSTALL) -m 644 libxvidcore_os2.def $(BUILD_DIR)/libxvidcore_os2.def && cd $(BUILD_DIR) && $(IMPLIB_CMD)
 	@cd $(BUILD_DIR) && $(CC) $(LDFLAGS) $(OBJECTS) -o $(PRE_SHARED_LIB) $(SPECIFIC_LDFLAGS)
 
 #-----------------------------------------------------------------------------
@@ -149,7 +150,12 @@ install: $(BUILD_DIR)/$(STATIC_LIB) $(BUILD_DIR)/$(SHARED_LIB)
 	@$(INSTALL) -d $(DESTDIR)$(libdir)
 	@echo "  I: $(libdir)/$(STATIC_LIB)"
 	@$(INSTALL) -m 644 $(BUILD_DIR)/$(STATIC_LIB) $(DESTDIR)$(libdir)/$(STATIC_LIB)
-ifeq ($(SHARED_EXTENSION),dll)
+ifeq ($(shell uname -s),OS/2)
+	@echo "  I: $(libdir)/$(SHARED_LIB)"
+	@$(INSTALL) -m 644 $(BUILD_DIR)/$(SHARED_LIB) $(DESTDIR)$(libdir)/$(SHARED_LIB)
+	@echo "  I: $(libdir)/$(IMP_LIB)"
+	@$(INSTALL) -m 644 $(BUILD_DIR)/$(IMP_LIB) $(DESTDIR)$(libdir)/$(IMP_LIB)
+else ifeq ($(SHARED_EXTENSION),dll)
 	@echo "  I: $(libdir)/$(SHARED_LIB).a"
 	@$(INSTALL) -m 644 $(BUILD_DIR)/$(SHARED_LIB).a $(DESTDIR)$(libdir)/$(SHARED_LIB).a
 	@echo "  D: $(bindir)"

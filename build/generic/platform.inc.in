@@ -52,6 +52,7 @@ API_MAJOR=@API_MAJOR@
 API_MINOR=@API_MINOR@
 RANLIB=@RANLIB@
 AR=@AR@
+IMPLIB_CMD=@IMPLIB_CMD@
 
 # ============================================================================
 # Installation
@@ -84,3 +85,4 @@ SHARED_LIB=@SHARED_LIB@
 PRE_SHARED_LIB=@PRE_SHARED_LIB@
 SO_API_MAJOR_LINK=@SO_API_MAJOR_LINK@
 SO_LINK=@SO_LINK@
+IMP_LIB=@IMP_LIB@
