@@ -625,6 +625,8 @@ ac_includes_default="\
 
 ac_subst_vars='LTLIBOBJS
 LIBOBJS
+IMPLIB_CMD
+IMP_LIB
 ALTIVEC_CFLAGS
 SHARED_LIB
 SO_LINK
@@ -2181,6 +2183,35 @@ as_fn_error $? "failed to load site script $ac_site_file
 See \`config.log' for more details" "$LINENO" 5; }
   fi
 done
+
+if test -n "$OS2_SHELL"; then
+  # Backslashes into forward slashes:
+  # The following OS/2 specific code is performed AFTER config.site
+  # has been loaded to allow users to change their environment there.
+  # This strange code is necessary to deal with handling of backslashes by
+  # ksh.
+  ac_save_IFS="$IFS"
+  IFS="\\"
+  ac_TEMP_PATH=
+  for ac_dir in $PATH; do
+    IFS=$ac_save_IFS
+    if test -z "$ac_TEMP_PATH"; then
+      ac_TEMP_PATH="$ac_dir"
+    else
+      ac_TEMP_PATH="$ac_TEMP_PATH/$ac_dir"
+    fi
+  done
+  export PATH="$ac_TEMP_PATH"
+  unset ac_TEMP_PATH
+
+  # add .exe to ac_executable_extensions
+  if test -z "$ac_executable_extensions"; then
+    { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: ac_executable_extensions not set, assuming .exe" >&5
+$as_echo "$as_me: WARNING: ac_executable_extensions not set, assuming .exe" >&2;}
+  fi
+  ac_executable_extensions="$ac_executable_extensions .exe"
+  export ac_executable_extensions
+fi
 
 if test -r "$cache_file"; then
   # Some versions of bash will fail to source /dev/null (special files
@@ -4343,6 +4374,13 @@ $as_echo ".dynlib .a .o" >&6; }
 	STATIC_EXTENSION="a"
 	OBJECT_EXTENSION="o"
 	;;
+     os2-emx*)
+	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: .dll .a .o" >&5
+$as_echo ".dll .a .o" >&6; }
+	STATIC_EXTENSION="a"
+	SHARED_EXTENSION="dll"
+	OBJECT_EXTENSION="o"
+	;;
      *)
         { $as_echo "$as_me:${as_lineno-$LINENO}: result: Unknown OS - Using .so .a .o" >&5
 $as_echo "Unknown OS - Using .so .a .o" >&6; }
@@ -4361,6 +4399,8 @@ ALTIVEC_CFLAGS=""
 PRE_SHARED_LIB=""
 SO_API_MAJOR_LINK=""
 SO_LINK=""
+IMP_LIB=""
+IMPLIB_CMD=""
 case "$target_os" in
      linux*|solaris*|gnu*|*qnx*)
 	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: ok" >&5
@@ -4406,6 +4446,16 @@ $as_echo "module options" >&6; }
 	   SPECIFIC_LDFLAGS="-r -keep_private_externs -nostdlib && \$(CC) \$(LDFLAGS) \$(PRE_SHARED_LIB) -o libxvidcore.\$(SHARED_EXTENSION).\$(API_MAJOR) -bundle -flat_namespace -undefined suppress"
 	fi
 	;;
+     os2-emx*)
+	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: ok" >&5
+$as_echo "ok" >&6; }
+	STATIC_LIB="xvidcore.\$(STATIC_EXTENSION)"
+	SHARED_LIB="xvidcore.\$(SHARED_EXTENSION)"
+	IMP_LIB="xvidcore_dll.\$(STATIC_EXTENSION)"
+	SPECIFIC_LDFLAGS="-Zdll -Zcrtdll -Zbin-files libxvidcore_os2.def"
+	SPECIFIC_CFLAGS=""
+	IMPLIB_CMD="emximp -o \$(IMP_LIB) libxvidcore_os2.def"
+	;;
      beos)
 	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: ok" >&5
 $as_echo "ok" >&6; }
@@ -4426,6 +4476,14 @@ esac
 
 if test x"$PRE_SHARED_LIB" = x; then
   PRE_SHARED_LIB=$SHARED_LIB
+fi
+
+if test x"$IMP_LIB" = x ; then
+  IMP_LIB=$SHARED_LIB
+fi
+
+if test x"$IMPLIB_CMD" = x ; then
+  IMPLIB_CMD="echo \"     ignoring IMPLIB\""
 fi
 
 
@@ -4633,6 +4691,13 @@ $as_echo "win32" >&6; }
                    rm -f conftest*
                fi
                MARK_FUNCS=""
+               ;;
+           os2-emx*)
+               { $as_echo "$as_me:${as_lineno-$LINENO}: result: aout" >&5
+$as_echo "aout" >&6; }
+               NASM_FORMAT="aout"
+	       PREFIX="-DPREFIX"
+	       MARK_FUNCS=""
                ;;
            *darwin*)
                if test "$ARCHITECTURE" = "X86_64" ; then
@@ -5018,6 +5083,8 @@ if test "$GCC" = "yes" ; then
 		CFLAGS=`echo $CFLAGS | sed s,"-mcpu","-mtune",g`
 	fi
 fi
+
+
 
 
 
