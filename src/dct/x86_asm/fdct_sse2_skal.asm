@@ -90,6 +90,8 @@ BITS 32
 
 %ifdef FORMAT_COFF
 SECTION .rodata
+%elifdef FORMAT_AOUT
+SECTION .data
 %else
 SECTION .rodata align=16
 %endif
