@@ -41,6 +41,13 @@
 #include "motion_inlines.h"
 #include "motion_smp.h"
 
+#ifdef __OS2__
+#define INCL_DOS
+#include <os2.h>
+
+#define sched_yield() DosSleep(1);
+#endif
+
 
 static const int xvid_me_lambda_vec8[32] =
 	{     0    ,(int)(1.0 * NEIGH_TEND_8X8 + 0.5),

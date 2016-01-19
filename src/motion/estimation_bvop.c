@@ -39,6 +39,13 @@
 #include "sad.h"
 #include "motion_inlines.h"
 
+#ifdef __OS2__
+#define INCL_DOS
+#include <os2.h>
+
+#define sched_yield() DosSleep(1);
+#endif
+
 static int32_t
 ChromaSAD2(const int fx, const int fy, const int bx, const int by,
 			SearchData * const data)
