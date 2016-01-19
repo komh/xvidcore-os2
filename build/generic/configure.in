@@ -234,6 +234,12 @@ case "$target_os" in
 	SHARED_EXTENSION="dll"
 	OBJECT_EXTENSION="obj"
 	;;
+     os2-emx*)
+	AC_MSG_RESULT([.dll .a .o])
+	STATIC_EXTENSION="a"
+	SHARED_EXTENSION="dll"
+	OBJECT_EXTENSION="o"
+	;;
      darwin*|raphsody*)
 	if test x"$macosx_module" = x"yes"; then
 	   AC_MSG_RESULT([.so .a .o])
@@ -261,8 +267,10 @@ dnl
 dnl ==========================================================================
 
 AC_MSG_CHECKING(for platform specific LDFLAGS/CFLAGS)
+IMP_LIB=""
 SPECIFIC_LDFLAGS=""
 SPECIFIC_CFLAGS=""
+IMPLIB_CMD=""
 PRE_SHARED_LIB=""
 case "$target_os" in
      linux*|solaris*)
@@ -285,6 +293,15 @@ case "$target_os" in
 	SHARED_LIB="xvidcore.\$(SHARED_EXTENSION)"
 	SPECIFIC_LDFLAGS="-mno-cygwin -shared -Wl,--dll,--out-implib,\$@.a libxvidcore.def"
 	SPECIFIC_CFLAGS="-mno-cygwin"
+	;;
+     os2-emx*)
+	AC_MSG_RESULT([ok])
+	STATIC_LIB="xvidcore.\$(STATIC_EXTENSION)"
+	SHARED_LIB="xvidcore.\$(SHARED_EXTENSION)"
+	IMP_LIB="xvidcore_dll.\$(STATIC_EXTENSION)"
+	SPECIFIC_LDFLAGS="-Zdll -Zcrtdll -Zbin-files libxvidcore_os2.def"
+	SPECIFIC_CFLAGS=""
+	IMPLIB_CMD="emximp -o \$(IMP_LIB) libxvidcore_os2.def"
 	;;
      darwin*|raphsody*)
 	STATIC_LIB="libxvidcore.\$(STATIC_EXTENSION)"
@@ -316,8 +333,16 @@ case "$target_os" in
 	;;
 esac
 
-if test x"$PRE_SHARED_LIB" = x; then 
+if test x"$PRE_SHARED_LIB" = x; then
   PRE_SHARED_LIB=$SHARED_LIB
+fi
+
+if test x"$IMP_LIB" = x ; then
+  IMP_LIB=$SHARED_LIB
+fi
+
+if test x"$IMPLIB_CMD" = x ; then
+  IMPLIB_CMD="echo \"     ignoring IMPLIB\""
 fi
 
 dnl ==========================================================================
@@ -390,18 +415,27 @@ if test "$ARCHITECTURE" = "IA32" -o "$ARCHITECTURE" = "X86_64" ; then
                NASM_FORMAT="elf"
 	       MARK_FUNCS="-DMARK_FUNCS"
 	           PREFIX=""
+	       FORMAT="-DFORMAT_ELF"
                ;;
            [[cC]][[yY]][[gG]][[wW]][[iI]][[nN]]*|mingw32*|mks*)
                AC_MSG_RESULT([win32])
                NASM_FORMAT="win32"
 	       PREFIX="-DPREFIX"
 	       MARK_FUNCS=""
+	       FORMAT="-DFORMAT_WIN32"
+               ;;
+           os2-emx*)
+               AC_MSG_RESULT([aout])
+               NASM_FORMAT="aout"
+	       PREFIX="-DPREFIX"
+	       MARK_FUNCS=""
+	       FORMAT="-DFORMAT_AOUT"
                ;;
        esac
 
        AS="$chosen_asm_prog"
        ASSEMBLY_EXTENSION="asm"
-       AFLAGS="-I\$(<D)/ -f $NASM_FORMAT $PREFIX $MARK_FUNCS"
+       AFLAGS="-I\$(<D)/ -f $NASM_FORMAT $PREFIX $MARK_FUNCS $FORMAT"
        ASSEMBLY_SOURCES="SRC_${ARCHITECTURE}"
        if test "$ARCHITECTURE" = "X86_64" ; then
                AFLAGS=${AFLAGS}" -m amd64"
@@ -586,13 +620,18 @@ int main(int argc, char **argv)
 	return 0;
 }
 EOF
-	$CC -o gcc-ver test.c
-	
+	case "$target_os" in
+		os2-emx*) EXEEXT=".exe" ;;
+		*) EXEEXT="" ;;
+	esac
+
+	$CC -o gcc-ver$EXEEXT test.c
+
 	GCC_MAJOR=`./gcc-ver M`
 	GCC_MINOR=`./gcc-ver m`
 
 	rm -f test.c
-	rm -f gcc-ver
+	rm -f gcc-ver$EXEEXT
 
 	# GCC 4.x
 	if test "${GCC_MAJOR}" -gt 3 ; then
@@ -633,6 +672,7 @@ AC_SUBST(CC)
 AC_SUBST(CFLAGS)
 AC_SUBST(SPECIFIC_LDFLAGS)
 AC_SUBST(SPECIFIC_CFLAGS)
+AC_SUBST(IMPLIB_CMD)
 AC_SUBST(DCT_IA64_SOURCES)
 AC_SUBST(PPC_ALTIVEC_SOURCES)
 AC_SUBST(RANLIB)
@@ -641,6 +681,7 @@ AC_SUBST(API_MINOR)
 AC_SUBST(STATIC_LIB)
 AC_SUBST(PRE_SHARED_LIB)
 AC_SUBST(SHARED_LIB)
+AC_SUBST(IMP_LIB)
 
 dnl ==========================================================================
 dnl

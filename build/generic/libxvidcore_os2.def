@@ -1,0 +1,12 @@
+LIBRARY XVIDCORE INITINSTANCE TERMINSTANCE
+DATA MULTIPLE NONSHARED
+EXPORTS
+    _xvid_global
+    _xvid_decore
+    _xvid_encore
+    _xvid_plugin_single
+    _xvid_plugin_2pass1
+    _xvid_plugin_2pass2
+    _xvid_plugin_lumimasking
+    _xvid_plugin_dump
+    _xvid_plugin_psnr
