@@ -51,6 +51,7 @@ API_MAJOR=@API_MAJOR@
 API_MINOR=@API_MINOR@
 RANLIB=@RANLIB@
 AR=@AR@
+IMPLIB_CMD=@IMPLIB_CMD@
 
 # ============================================================================
 # Installation
@@ -79,3 +80,4 @@ PPC_ALTIVEC_OBJECTS=$(@PPC_ALTIVEC_SOURCES@:.c=.@OBJECT_EXTENSION@)
 STATIC_LIB=@STATIC_LIB@
 SHARED_LIB=@SHARED_LIB@
 PRE_SHARED_LIB=@PRE_SHARED_LIB@
+IMP_LIB=@IMP_LIB@
