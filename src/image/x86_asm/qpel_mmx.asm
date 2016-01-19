@@ -93,7 +93,11 @@ cglobal xvid_FIR_0_1_3_6
 cglobal xvid_FIR_0_0_1_3
 cglobal xvid_FIR_0_0_0_1
 
+%ifidn __OUTPUT_FORMAT__,aout
+SECTION .data   ; let a linker to align
+%else
 SECTION .data align=SECTION_ALIGN
+%endif
 
 align SECTION_ALIGN
 xvid_Expand_mmx:

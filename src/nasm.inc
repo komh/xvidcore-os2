@@ -170,7 +170,11 @@ BITS 32
       %ifdef FORMAT_COFF
             SECTION .rodata
       %else
+      %ifidn __OUTPUT_FORMAT__,aout
+            SECTION .text   ; let a linker to align
+      %else
             SECTION .rodata align=SECTION_ALIGN
+      %endif
       %endif
 %endmacro
 
@@ -181,7 +185,11 @@ BITS 32
 %ifidn __OUTPUT_FORMAT__,macho64
       SECTION .text align=SECTION_ALIGN
 %else
+%ifidn __OUTPUT_FORMAT__,aout
+      SECTION .text     ; let a linker to align
+%else
       SECTION .rotext align=SECTION_ALIGN
+%endif
 %endif
 %endif
 %endmacro
